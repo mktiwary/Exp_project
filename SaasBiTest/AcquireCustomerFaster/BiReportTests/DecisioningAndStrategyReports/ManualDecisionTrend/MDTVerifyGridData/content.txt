@@ -1,0 +1,113 @@
+@case_id=6657859
+@section=BI_Reports
+@priority=P2
+@reference=ANA-133255
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is a test to verify ''' Decision Made, Accept, Decline, Counteroffer and its Percentage on Grid data of MDT Report'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Purpose of this test is to verify data displayed on the Grid for MDT report
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+!* Insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} mdt_report/mdt_f_application_decision.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit; EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|sleep 10|
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} MDT_Dataset.csv|
+*!
+*!
+
+!* '''Then''' Compare the data on source and target
+
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.mdt_report1 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('mdt_report1','/home/jenkins/workspace/-!${dbname}!-/MDT_Dataset.csv',11);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select underwriter::text as underwriterid, number_of_applications_with_decisions::int as Decisionmade, approved::int as Approvedcnt,
+cast(rtrim(approved_percentage,'%') as double precision) as Approvedpct, decline::int as Declinecnt, cast(rtrim(decline_percentage,'%') as double precision) as Declinepct,
+counteroffer::int as Counteroffercnt, cast(rtrim(counteroffer_percentage,'%') as double precision) as Counterofferpct, 
+cast(replace(product_application_amount,',','') as double precision) as Productappamt, cast(replace("avg._product_amount",',','') as double precision) as Avgproductamt
+, awaiting_manual_review::int as Awaitingmanreview
+from dbfit_test.mdt_report1 where underwriter != 'Total' -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select underwriterid::text, sum(DecisionMade)::int as DecisionMade, sum(ApprovedCnt)::int as Approvedcnt, round(sum(ApprovedCnt)/sum(DecisionMade)::dec*100,2) as Approvedpct, 
+sum(DeclineCnt)::int as Declinecnt, round(sum(DeclineCnt)/sum(DecisionMade)::dec*100,2) as Declinepct, sum(CounterofferCnt)::int as Counteroffercnt, 
+round(sum(CounterofferCnt)/sum(DecisionMade)::dec*100,2) as Counterofferpct, round(sum(ProductAppAmt),2)::dec as Productappamt,
+round(sum(ProductAppAmt)/sum(DecisionMade)::dec,2) as Avgproductamt, sum(AwaitingManReview) as Awaitingmanreview
+from
+(
+select underwriterid, 
+sum(case when decisiontype ='Manual' then 1 else 0 end) as DecisionMade,
+sum(case when decisiontype ='Manual' and decision = 'APPROVE' then 1 else 0 end) as ApprovedCnt,
+sum(case when decisiontype ='Manual' and decision = 'DECLINE' then 1 else 0 end) as DeclineCnt,
+sum(case when decisiontype ='Manual' and productcounteroffer ='y' then 1 else 0 end) as CounterofferCnt,
+sum(amountapproved) as ProductAppAmt,
+sum(case when productstatus in ('Refer Credit', 'Refer Fraud') then 1 else 0 end) as AwaitingManReview,
+RANK() OVER (PARTITION BY applicationnumber, producttype, productid ORDER BY applicationupdatetimestamp desc) as rnk
+from f_application_decision where decisiontype ='Manual' --and applicationupdatetimestamp >= date(now()) - interval '90 days'
+group by underwriterid, applicationupdatetimestamp, applicationnumber, producttype, productid
+)x where rnk=1
+group by underwriterid
+order by underwriterid -!|source_data|
+*!
+|compare stored queries hide matching rows|source_data|target_data| 
+|underwriterid|Decisionmade|Approvedcnt|Approvedpct|Declinecnt|Declinepct|Counteroffercnt|Counterofferpct|Productappamt|Avgproductamt|Awaitingmanreview|
+*!
+*!

@@ -1,0 +1,49 @@
+@section=Billing_Event_Consumer
+@priority=P3
+@reference=ANA-129675
+@test_type=User_Story_Acceptance
+@use_case=
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!*> Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env_billing} |
+*!
+!3 '''Description:'''  Purpose of the test is to verify when Usecase is Null then that messages is not inserted into BI Datastore 
+
+!4 '''Test 1:''' This test is to verify that when messages have null Usecase then they are rejected by BI Consumer
+
+!*> '''Given''' That 2 messages are sent one with Null Usecase and another with all mandatory fields available
+!*> Clear Table
+!|Execute| delete from public.f_eda_billing|
+
+|commit|
+*!
+
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|kafka-message/kafka-send-message-wt-topic.sh ${billing_topic}  Billing/BC_UsecaseisNull.json|
+|command|echo "Message Sent"|
+*!
+!*< Sleep
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|sleep 3|
+*!
+*!
+!*> '''when''' messages received and processed by Billing Consumer
+Automatic kafka process consume and process messages
+*!
+!*> '''Then''' messages with Null Usecase is rejected and and one with all mandatory field is inserted into BI Datastore
+!|Query|select count(*)::int as count from public.f_eda_billing|
+|count|
+|1|
+
+!|Query|select * from public.f_eda_billing|
+|clientid|businessserviceid|usecase|market|location|environmenttype|messageid|correlationid|eventtimestamp|producttype|productid|applicationnumber|transactionid|securedflag|applicationcreationtimestamp|applicationcreationdatekey|applicationcreationtimekey|applicationupdatetimestamp|applicationupdatedatekey|applicationupdatetimekey|eventname|applicationstatus|quantity|envelopetimestamp|
+|hsbc|public|ACF|NA|USA|Test|ACD0770E-04AC-1037-5C94-10BDE8CF81AE|test_corr_1139|2017-10-30 17:07:11|Unsecured Credit Cards|UNSECCC|51478893|345765123|N|2017-03-05 20:05:02.625367|20170305|2005|2017-03-08 03:25:06.625367|20170308|325|EDQ|Accepted|1|2017-10-30 17:07:11|
+*!

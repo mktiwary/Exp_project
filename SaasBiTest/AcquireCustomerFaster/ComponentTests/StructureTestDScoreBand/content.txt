@@ -1,0 +1,64 @@
+@case_id=6504745
+@section=BI_Event_Consumer
+@priority=P1
+@reference=ANA-127674
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!lastmodified
+
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env} |
+!define tablename {d_score_bands}
+*!
+
+!3 '''Description:'''     Purpose of the test is to verify table structure, primary keys  and index keys on table '''${tablename}'''
+
+!4 '''Test 1:'''  Test to Validate Table structure of Table ${tablename}
+!*> '''Given''' Given that table structure is defined in BI Data Model
+*!
+!*> '''When''' Code is deployed into QA environment developed by dev team
+*!
+!*> '''Then''' Verify that table and it's structure is as per the interface document
+!|query|${tablesql} and table_schema='public'|
+|ordinal_position|column_name          |udt_name  |character_maximum_length|is_nullable|numeric_precision|numeric_precision_radix|numeric_scale|datetime_precision|
+|1               |scorebandspk         |int4      |null                    |NO         |32               |2                      |0            |null              |
+|3               |description          |text      |null                    |YES        |null             |null                   |null         |null              |
+|4               |scorefrom            |numeric   |null                    |NO         |9                |10                     |2            |null              |
+|5               |scoreto              |numeric   |null                    |NO         |9                |10                     |2            |null              |
+|6               |status               |text      |null                    |YES        |null             |null                   |null         |null              |
+|7               |recordvalidfrom      |timestamptz|null                    |YES        |null             |null                   |null         |6                 |
+|8               |recordvalidto        |timestamptz|null                    |YES        |null             |null                   |null         |6                 |
+|9               |recordcreateddatetime|timestamptz|null                    |NO         |null             |null                   |null         |6                 |
+|10              |recordupdateddatetime|timestamptz|null                    |NO         |null             |null                   |null         |6                 |
+|12              |recordupdatedby      |text      |null                    |YES        |null             |null                   |null         |null              |
+*!
+!4 '''Test 2:''' Test to verify that Primary Key is defined on correct column for Table ${tablename}
+!*> '''Given''' Given that Primary Key is defined in BI Data Model
+*!
+!*> '''When''' Code is deployed into QA environment developed by dev team
+
+*!
+!*> '''Then''' Verify that Primary Key is defined on correct column for Table
+!|Query|${pksql}|
+|PKColumnName|
+|scorebandspk|
+*!
+ 
+!4 '''Test 3: ''' Test to Check if Index keys are available on correct column on ${tablename}
+!*> '''Given''' Given that Index keys is defined in BI Data Model
+*!
+!*> '''When''' Code is deployed into QA environment developed by dev team
+some code here --- if you are deploying the code
+*!
+!*> '''Then''' Verify that Index keys is defined on correct column for Table
+!|Query|${indexsql}|
+|table_name|index_name|column_name|
+|d_score_bands|d_score_bands_pk|scorebandspk|
+|d_score_bands|scores_from_idx|description|
+|d_score_bands|scores_from_idx|scorefrom|
+*!
+

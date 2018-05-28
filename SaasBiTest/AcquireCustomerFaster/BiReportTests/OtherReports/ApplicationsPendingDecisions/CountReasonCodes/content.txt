@@ -1,0 +1,106 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify that ''Number of Reason Codes - Application Pending''' matches source data on BI data store and MSTR report 
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Applications Pending Report data matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+!|Execute|delete from public.f_application_decision_reason_code|
+
+|commit|
+*!
+
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command   | sleep 5 |
+|command   |kafka-message/kafka-send-message-wt-topic.sh ${topic}  Test_Data/application-pending.json|
+|command   |kafka-message/kafka-send-message-wt-topic.sh ${topic}  Test_Data/app-pending-reson-code.json|
+|command   |echo "Message Sent"              |
+!*< Sleep
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 10              |
+*!
+*!
+
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 25              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} ApplicationsPending_Decisions_Dataset2.csv|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+
+!* '''Then''' Compare the data on source and target
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.app_pending2 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('app_pending2','/home/jenkins/workspace/-!${dbname}!-/ApplicationsPending_Decisions_Dataset2.csv',8);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select  sum (number_of_applications_with_decisions::integer) no_of_app
+,reason_code reasoncode
+from dbfit_test.app_pending2
+group by reason_code
+order by reason_code
+ -!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select count (fad.applicationnumber) no_of_app, rea.decisionsortedreasoncode reasoncode
+from f_application_decision fad
+join  f_application_decision_reason_code rea on fad.correlationid=rea.correlationid
+where lower(decisiontype)='system'
+and lower("Pst-B-Policy-Decision-Category") in ('refer')
+group by rea.decisionsortedreasoncode
+order by decisionsortedreasoncode
+ -!|source_data|
+
+|commit|
+*!
+
+|compare stored queries|source_data|target_data| 
+|no_of_app|reasoncode|
+*!
+*!

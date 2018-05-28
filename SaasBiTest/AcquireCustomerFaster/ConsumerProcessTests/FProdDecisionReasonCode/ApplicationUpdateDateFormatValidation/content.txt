@@ -1,0 +1,91 @@
+@case_id=6528703
+@section=BI_Event_Consumer
+@priority=P1
+@reference=ANA-134325
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+!*> Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                             |
+!|ConnectUsingFile|${env} |
+*!
+!3 '''Description:'''     Purpose of the test is to verify that consumer processes messages with valid date format
+
+!4 This test is to ensure that messages sent with date format (yyyymmdd) is processed by consumer and lands into f_product_decision_reason_code table
+
+!*> '''Given''' That message sent from source (!-PowerCurve-!)
+!*> Clear Table
+!|Execute|delete from f_product_decision_reason_code |
+
+|commit|
+*!
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command   |kafka-message/kafka-send-message-wt-topic.sh ${topic}  Test_Data/spec2.2/reasoncode-prod-date-format.json|
+|command   |echo "Message Sent"              |
+!*< Sleep
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 5              |
+*!
+*!
+*!
+!*> '''when''' messages received and processed by consumer process
+Automatic kafka process consume and process messages
+*!
+!* '''Then''' verify that message has been processed by consumer and lands into f_product_decision_reason_code table
+
+!4 '''Test 1:''' This test is to ensure that messages sent with invalid date format (yyyymmdd) in updatedate field is not processed by consumer
+
+!*> '''Then''' verify that message has been processed by consumer and landes into f_product_decision_reason_code table
+!|Query            |!- select count(*) Record_inserted from f_product_decision_reason_code where applicationnumber= '500124355' -!|
+|Record_inserted|
+|1|
+*!
+
+!4 '''Test 2:''' This test is to ensure that messages sent with invalid date format (yyyy-mm-dd) in updatedate field is not processed by consumer
+
+!*> '''Then''' verify that message has been processed by consumer and landes into f_product_decision_reason_code table
+!|Query            |!- select count(*) Record_inserted from f_product_decision_reason_code where applicationnumber= '500124356' -!|
+|Record_inserted|
+|0|
+*!
+
+
+!4 '''Test 3:''' This test is to ensure that messages sent with invalid date format (yyyy/mm/dd) in updatedate field is not processed by consumer
+
+!*> '''Then''' verify that message has been processed by consumer and landes into f_product_decision_reason_code table
+!|Query            |!- select count(*) Record_inserted from f_product_decision_reason_code where applicationnumber= '500124357' -!|
+|Record_inserted|
+|0|
+*!
+
+!4 '''Test 4:''' This test is to ensure that messages sent with invalid date format (yyyyddmm) in updatedate field is not processed by consumer
+
+!*> '''Then''' verify that message has been processed by consumer and landes into f_product_decision_reason_code table
+!|Query            |!- select count(*) Record_inserted from f_product_decision_reason_code where applicationnumber= '500124358' -!|
+|Record_inserted|
+|0|
+*!
+
+!4 '''Test 5:''' This test is to ensure that messages sent with invalid date format (yyyy-mm-dd) in updatedate field is not processed by consumer
+
+!*> '''Then''' verify that message has been processed by consumer and landes into f_product_decision_reason_code table
+!|Query            |!- select count(*) Record_inserted from f_product_decision_reason_code where applicationnumber= '500124359' -!|
+|Record_inserted|
+|0|
+*!
+
+!4 '''Test 6:''' This test is to ensure that messages sent with invalid date format (yyyy/dd/mm) in updatedate field is not processed by consumer
+
+!*> '''Then''' verify that message has been processed by consumer and landes into f_product_decision_reason_code table
+!|Query            |!- select count(*) Record_inserted from f_product_decision_reason_code where applicationnumber= '500124360' -!|
+|Record_inserted|
+|0|
+*!
+*!

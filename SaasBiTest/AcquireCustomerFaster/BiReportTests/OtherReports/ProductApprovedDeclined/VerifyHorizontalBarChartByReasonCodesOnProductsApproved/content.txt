@@ -1,0 +1,118 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is a test to verify '''Horizontal Bar chart by Reason Codes Used on Product Approved/Declined Report for Products which are Approved'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Purpose of this test is to verify data displayed on the Horizontal bar chart by Reason Codes Used for Approved Products
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision|
+
+|commit|
+
+!|Execute|delete from public.f_product_decision_reason_code|
+
+|commit|
+
+!|Execute|delete from public.d_score_bands|
+
+|commit|
+*!
+!* Insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} prod_approveddeclined/pad_f_application_decision.sql|x|
+|contains|x.stdout|Insert Successful|
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} prod_approveddeclined/pad_f_product_decision_reason_code.sql|x|
+|contains|x.stdout|Insert Successful|
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} prod_approveddeclined/pad_d_score_bands.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit; EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Products_Approved_Declined_Dataset_2.csv|
+*!
+*!
+
+!* '''Then''' Compare the data on source and target
+
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.pad_report5 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('pad_report5','/home/jenkins/workspace/-!${dbname}!-/Products_Approved_Declined_Dataset_2.csv',9);
+END $$;
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Execute|update dbfit_test.pad_report5 set score_band = replace(replace(score_band,'&gt;','>'),'&lt;','<')|
+
+|commit|
+
+!|Store Query|!- select reason_code,
+sum(case when decision_type ='Manual' then 1 else 0 end)::int as ManualDecision,
+sum(case when decision_type ='System' then 1 else 0 end)::int as SystemDecision
+from dbfit_test.pad_report5 where application_state='Approved'
+group by reason_code
+order by reason_code -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select decisionsortedreasoncode as reason_code, SUM(md)::int as ManualDecision, SUM(sd)::int as SystemDecision from
+(
+select FPDRC.decisionsortedreasoncode, 
+sum(case when FAD.decisiontype ='Manual' then 1 else 0 end)::int as MD,
+sum(case when FAD.decisiontype ='System' then 1 else 0 end)::int as SD,
+sum(case when decisioner is null then 1 else 0 end) as SD1,
+RANK() OVER (PARTITION BY FAD.applicationnumber, FAD.producttype, FAD.productid ORDER BY FAD.applicationupdatetimestamp desc) as rnk
+from f_application_decision FAD
+join f_product_decision_reason_code FPDRC
+on FAD.correlationid = FPDRC.correlationid
+and FAD.productid = FPDRC.productid
+where FAD.decision ='APPROVE'
+group by  FPDRC.decisionsortedreasoncode,FAD.decisioner, FAD.applicationupdatetimestamp, FAD.applicationnumber, FAD.producttype, FAD.productid
+) x where rnk=1
+group by decisionsortedreasoncode
+order by decisionsortedreasoncode -!|source_data|
+*!
+|compare stored queries|source_data|target_data| 
+|reason_code|ManualDecision|SystemDecision|
+*!
+*!

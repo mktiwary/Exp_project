@@ -1,0 +1,30 @@
+@case_id=6504743
+@section=BI_Event_Consumer
+@priority=P1
+@reference=ANA-127674
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!lastmodified
+
+!3 '''Description :''' This test is to verify that micro-strategy is available and user can refresh report successfully.
+
+!*> Variables & Setup 
+!path lib/*.jar
+
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env} |
+*!
+
+!4 '''Test 1:'''  This test is to refresh Microstrategy reports to ensure that Microstrategy project/environment is up and running 
+!*> '''Given''' that Microstategy is available in test environment
+*!
+!*> '''When''' Report has been deployed into test and user refreshes the report.
+
+*!
+!*> '''Then''' Verify that report has been successfully refreshed without any errors
+|com.objectmentor.fixtures.CommandLineFixture|
+|command| mstr-script/check-mstr-available.sh ${dbname} ${mstrServer}|x|
+|contains|x.stdout|Successful|
+*!

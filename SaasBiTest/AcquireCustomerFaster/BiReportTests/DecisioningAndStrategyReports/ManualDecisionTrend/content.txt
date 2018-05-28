@@ -1,0 +1,4 @@
+!img /files/images/experian_logo.png
+!lastmodified
+!3 This test suite contains tests for Manual Decision Trend
+!contents -R2 -g -p -f -h

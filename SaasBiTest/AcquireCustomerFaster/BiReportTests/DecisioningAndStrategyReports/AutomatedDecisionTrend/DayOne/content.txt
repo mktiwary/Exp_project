@@ -1,0 +1,7 @@
+!img /files/images/experian_logo.png
+
+!3 This test suite is to cover automated tests for Automated Decision Trend Report.
+
+https://jira.uk.experian.local/browse/ANA-133239
+
+!contents -R2 -g -p -f -h

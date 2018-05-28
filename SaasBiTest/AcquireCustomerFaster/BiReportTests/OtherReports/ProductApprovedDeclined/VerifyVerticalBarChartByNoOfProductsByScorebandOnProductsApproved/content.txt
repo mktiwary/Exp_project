@@ -1,0 +1,118 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is system integration test to verify that '''Bar chart by Underwriter for Approved No of applications''' on Approved/Declined report is correct
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Approved/Declined Report bar chart data matches with SQL data returned from BI datastore
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+!|Execute|delete from public.f_application_decision_reason_code |
+
+|commit|
+*!
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command   | sleep 5 |
+|command   |kafka-message/kafka-send-message-wt-topic.sh ${topic}  Test_Data/ANA-119006_performance_data_mkt.json|
+|command   |echo "Message Sent"              |
+!*< Sleep
+|com.objectmentor.fixtures.CommandLineFixture|
+|command |sleep 50 |
+*!
+*!
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command   |kafka-message/kafka-send-message-wt-topic.sh ${topic}  Test_Data/FADRC_10401_data.json|
+|command   |echo "Message Sent"|
+!*< Sleep
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|sleep 50|
+*!
+*!
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit; EOF|
+*!
+!*> '''And''' Copy file from MSTR server to !-DbFit-! Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|sleep 50|
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/remove-local-file.sh ${dbname} ${mstrServer}|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+!*> '''Then''' Compare the data on source and target
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.aad_report CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('aad_report','/home/jenkins/workspace/-!${dbname}!-/Approved_Declined_Dataset.csv',9);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query| !- select Y.underwriter, SUM(y.MD)::integer as ManualDecision, SUM(y.SD)::integer as SystemDecision
+from
+(
+select underwriter, 
+case when decision_type ='Manual' then sum("number_of_application_(distinct)"::integer) else 0 end as MD,
+case when decision_type ='System' then sum("number_of_application_(distinct)"::integer) else 0 end as SD
+from dbfit_test.aad_report where application_state ='Approved' 
+group by underwriter, decision_type
+) Y
+group by Y.underwriter
+order by Y.underwriter -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query| !- select x.underwriterid as underwriter, sum(x.mdcount)::integer as ManualDecision, sum(x.sdcount)::integer as SystemDecision from
+(
+select case when underwriterid is null then 'System' when underwriterid='' then 'System' else underwriterid end as underwriterid, 
+case when decisiontype ='Manual' then count(underwriterid)::int else 0 end as MDCount,
+case when decisiontype ='System' then count(underwriterid)::int else 0 end as SDCount
+from f_application_decision where finaldecision in ('Acc','acc') 
+group by underwriterid,decisiontype
+) X 
+group by x.underwriterid
+order by X.underwriterid -! |source_data|
+
+|commit|
+*!
+|compare stored queries|source_data|target_data| 
+|underwriter|ManualDecision|SystemDecision|
+*!
+*!

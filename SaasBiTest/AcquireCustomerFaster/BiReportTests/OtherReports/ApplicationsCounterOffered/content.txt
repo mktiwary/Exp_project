@@ -1,0 +1,7 @@
+!img /files/images/experian_logo.png
+
+!3 This test suite contains test for '''Applications Counter Offer'''.
+
+https://jira.uk.experian.local/browse/ANA-130787
+
+!contents -R2 -g -p -f -h

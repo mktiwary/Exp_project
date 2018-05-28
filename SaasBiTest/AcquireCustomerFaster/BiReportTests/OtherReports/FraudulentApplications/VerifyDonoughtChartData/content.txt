@@ -1,0 +1,162 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:'''  This is test to verify the Donought chart data for '''Fraudulent Applications Report'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Verify Donought Chart data for Application Flagged as Fraud
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} fraud_application/f_application_decision.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!*> '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 25              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Fraudulent_Applications_Dataset.csv|
+*!
+*!
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.fraud_report_ds11 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('fraud_report_ds11','/home/jenkins/workspace/-!${dbname}!-/Fraudulent_Applications_Dataset.csv',16);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select sum(coalesce(cast(nullif(fraud_flagged,'') as integer),0))::int as frd_flg_cnt, 
+round(sum(coalesce(cast(nullif(fraud_flagged,'') as integer),0))/sum(number_of_applications_with_decisions::integer)::decimal*100,2) as Frd_flg_pct,
+sum(coalesce(cast(nullif("number_of_applications_-_flagged",'') as integer),0))::int as Not_frd_flg_cnt,
+round(sum(coalesce(cast(nullif("number_of_applications_-_flagged",'') as integer),0))/sum(number_of_applications_with_decisions::integer)::decimal*100,2) as Not_Frd_flg_pct
+from dbfit_test.fraud_report_ds11 -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select SUM(case when worklist='w0' then 1 else 0 end)::int as Frd_flg_cnt,
+round(SUM(case when worklist='w0' then 1 else 0 end)/count( applicationnumber)::decimal*100,2) as Frd_flg_pct,
+SUM(case when worklist !='w0' then 1 else 0 end)::int as Not_Frd_flg_cnt,
+round(SUM(case when worklist !='w0' then 1 else 0 end)/count( applicationnumber)::decimal*100,2) as Not_Frd_flg_pct
+from f_application_decision -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|frd_flg_cnt|frd_flg_pct|Not_Frd_flg_cnt|Not_Frd_flg_pct|
+*!
+*!
+!4 '''Test 2:''' Verify Donought Chart data for Application Confirmed as Fraud
+
+!*> '''Then''' verify the source and target data (SQL Query from BI Datastore and CSV MSTR file)
+
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select sum(coalesce(cast(nullif(fraud_confirmed,'') as integer),0))::int as frd_cnf_cnt,
+round(sum(coalesce(cast(nullif(fraud_confirmed,'') as integer),0))/sum(number_of_applications_with_decisions::integer)::decimal*100,2) as frd_cnf_pct,
+sum(coalesce(cast(nullif("number_of_applications_-_confirmed",'') as integer),0))::int as Not_frd_cnf_cnt,
+round(sum(coalesce(cast(nullif("number_of_applications_-_confirmed",'') as integer),0))/sum(number_of_applications_with_decisions::integer)::decimal*100,2) as Not_frd_cnf_pct
+from dbfit_test.fraud_report_ds11 -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select SUM(case when fraudconfirmed ='y' then 1 else 0 end)::int frd_cnf_cnt,
+round(SUM(case when fraudconfirmed ='y' then 1 else 0 end)::int/count(applicationnumber)::decimal*100,2) frd_cnf_pct,
+SUM(case when fraudconfirmed ='n' then 1 else 0 end)::int Not_frd_cnf_cnt,
+round(SUM(case when fraudconfirmed ='n' then 1 else 0 end)/count(applicationnumber)::decimal*100,2) Not_frd_cnf_pct
+from f_application_decision -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|frd_cnf_cnt|frd_cnf_pct|Not_frd_cnf_cnt|Not_frd_cnf_pct|
+*!
+*!
+!4 '''Test 3:''' Verify Donought Chart data for Application Flagged and then Confirmed as Fraud
+
+!*> '''Then''' verify the source and target data (SQL Query from BI Datastore and CSV MSTR file)
+
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select sum(coalesce(cast(nullif(flagged_and_confirmed_as_fraud,'') as integer),0))::int as flg_and_frd_cnf_cnt,  
+round(sum(coalesce(cast(nullif(flagged_and_confirmed_as_fraud,'') as integer),0))/sum(coalesce(cast(nullif(fraud_flagged,'') as integer),0))::decimal*100,2) as flg_and_frd_cnf_pct,
+sum(coalesce(cast(nullif("flagged_-_flagged_and_confirmed",'') as integer),0))::int as Not_flg_and_frd_cnf_cnt,
+round(sum(coalesce(cast(nullif("flagged_-_flagged_and_confirmed",'') as integer),0))/sum(coalesce(cast(nullif(fraud_flagged,'') as integer),0))::decimal*100,2) as Not_flg_and_frd_cnf_pct
+from dbfit_test.fraud_report_ds11 -!|target_data|
+
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select SUM(case when worklist ='w0' and fraudconfirmed ='y' then 1 else 0 end)::int flg_and_frd_cnf_cnt,
+round(SUM(case when worklist ='w0' and fraudconfirmed ='y' then 1 else 0 end)/(select count(applicationnumber) from f_application_decision 
+where worklist ='w0')::decimal *100,2) flg_and_frd_cnf_pct,
+SUM(case when worklist ='w0' and fraudconfirmed ='n' then 1 else 0 end)::int Not_flg_and_frd_cnf_cnt,
+round(SUM(case when worklist ='w0' and fraudconfirmed ='n' then 1 else 0 end)/(select count(applicationnumber) from f_application_decision 
+where worklist ='w0')::decimal *100,2) Not_flg_and_frd_cnf_pct
+from f_application_decision -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|flg_and_frd_cnf_cnt|flg_and_frd_cnf_pct|Not_flg_and_frd_cnf_cnt|Not_flg_and_frd_cnf_pct|
+*!
+*!

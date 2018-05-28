@@ -1,0 +1,201 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:'''  This is integration test to verify the Bar chart data for '''Number of Role Change Users by Year, Month, Week & Day'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Verify the Bar Chart data for Number of Role Change Users by Year
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from clientaudit.f_user_audit_activity |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} user_dashboard/f_user_audit_activity.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!*> '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to .SaasBiTest.ClientLevelReport.UserReports.UserDashboard.DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 25              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} User_Dashboard_Dataset_3.csv|
+*!
+*!
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.user_report_ds32 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('user_report_ds32','/home/jenkins/workspace/-!${dbname}!-/User_Dashboard_Dataset_3.csv',8);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select year, count(user1)::int as RoleChange_Cnt
+from dbfit_test.user_report_ds32 where user1_event = 'RoleChange'
+group by year
+order by year -!|target_data|
+
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select year, count(userid)::int as RoleChange_Cnt from
+(
+select userid,eventname, eventlocaltimestamp, ltrim(rtrim(cast(date_part('year', eventtimestamp) as text))) as year
+from clientaudit.f_user_audit_activity where eventname = 'RoleChange'
+group by userid,eventname, eventtimestamp
+)x group by year
+order by year -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|year|RoleChange_Cnt|
+*!
+*!
+
+!4 '''Test 2:''' Verify the Bar Chart data for Number of Role Change Users by Month
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select month as yearmonth, count(user1)::int as RoleChange_Cnt
+from dbfit_test.user_report_ds32 where user1_event = 'RoleChange'
+group by month
+order by month -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select yearmonth, count(userid)::int as RoleChange_Cnt from
+(
+select userid,eventname, eventtimestamp, to_char(eventtimestamp, 'YYYY-MM') as Yearmonth
+from clientaudit.f_user_audit_activity where eventname = 'RoleChange' 
+order by userid,eventtimestamp
+)x group by yearmonth
+order by yearmonth -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data|
+|yearmonth|RoleChange_Cnt|
+*!
+*!
+
+!4 '''Test 3:''' Verify the Bar Chart data for Number of Role Change Users by Week
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select week, count(user1)::int as RoleChange_Cnt
+from dbfit_test.user_report_ds32 where user1_event = 'RoleChange'
+group by week
+order by week -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select week, count(userid)::int as RoleChange_Cnt from 
+(
+select fuaa.userid, fuaa.eventname, fuaa.eventtimestamp, dd.weekdesc as week
+from clientaudit.f_user_audit_activity fuaa join clientaudit.d_date dd
+on to_char(fuaa.eventtimestamp,'YYYY-MM-DD') = dd.datename
+where eventname='RoleChange' 
+) x 
+group by week
+order by week -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|week|RoleChange_Cnt|
+*!
+*!
+
+!4 '''Test 4:''' Verify the Bar Chart data for Number of Role Change Users by Day
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select date, count(user1)::int as RoleChange_Cnt
+from dbfit_test.user_report_ds32 where user1_event = 'RoleChange'
+group by date
+order by date -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select x.date, count(userid)::int as RoleChange_Cnt from
+(
+select userid,eventname, eventtimestamp, to_char(eventtimestamp,'YYYY-MM-DD') as date
+from clientaudit.f_user_audit_activity where eventname = 'RoleChange' 
+order by userid,eventtimestamp
+) x group by x.date
+order by x.date -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|date|RoleChange_Cnt|
+*!
+*!

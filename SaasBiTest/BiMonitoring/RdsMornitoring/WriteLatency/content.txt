@@ -1,0 +1,35 @@
+@case_id=6781723
+@section=BI_Monitoring
+@priority=P2
+@reference=ANA-131396
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Manual
+
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' This test is ensure that splunk display correct metrics for RDS - '''!-WriteLatency-!'''
+
+Jira: https://jira.uk.experian.local/browse/ANA-130799
+
+!4 '''Test 1:''' This test is to ensure that metric for '''!-WriteLatency-!''' is correctly populated in splunk
+
+!3 Steps:
+
+!4 '''Precondition''' RDS instance is up and running
+
+   1. Login to splunk 
+   2. Enter search criteria-> ''' index="bi_monitoring_dev_gb" instance="microstrategy-iserver-metadata-rds" '''
+   3. Search for metric ->''' spath metric | search metric=WriteLatency  '''
+   4. Compare the Min, max,Average reading against aws monitoring (Detail as below)
+   5. Login to aws, select  RDS -> then instances
+   6. From the instances list select the instance which we are monitoring '''microstrategy-iserver-metadata-rds'''
+   7. It displays the number of graphs, click on any graph
+   8. On Metric page select '''!-WriteLatency-!''' from metric drop down and period as 1 minute
+   9. Now Note down time for the metric on splunk and take 5 reading from that point from AWS metric
+   10. And calcluate '''Min, Max, Average''' readings
+
+!3 Expected:    
+   1. Metrics on splunk should show correct details for '''Min, Max and average''' calcualtions 

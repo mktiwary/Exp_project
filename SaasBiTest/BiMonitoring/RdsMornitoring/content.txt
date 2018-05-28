@@ -1,0 +1,8 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 This test suite contains manual tests for RDS monitoring
+
+Ref: https://confluenceglobal.experian.local/confluence/display/GSPD/BI+Monitoring
+
+!contents -R1 -g -p -f -h

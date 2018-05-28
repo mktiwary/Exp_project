@@ -1,0 +1,149 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify '''Target Rate for New applications''' on report matches with data on BI data store .
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Target rate for new applications matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+!*> Insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_dashboard/target_rate_new_app.sql|x|
+|contains|x.stdout|Insert Successful|
+
+
+|commit|
+
+!|Execute| !- update f_application_decision set applicationstatus='Incomplete' -!|
+*!
+|commit|
+
+
+!*> Update target values (SLA)
+!|Execute|!-
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Booked', targetvalue=80, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:25.602', recordupdateddatetime='2018-01-17 15:49:25.602', recordcreatedby='ZA', recordupdateby='ZA', itemcode='10'
+WHERE targetdetailspk=1;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Accepted', targetvalue=75, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:27.485', recordupdateddatetime='2018-01-17 15:49:27.485', recordcreatedby='ZA', recordupdateby='ZA', itemcode='09'
+WHERE targetdetailspk=2;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Approved', targetvalue=40, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:29.700', recordupdateddatetime='2018-01-17 15:49:29.700', recordcreatedby='ZA', recordupdateby='ZA', itemcode='08'
+WHERE targetdetailspk=3;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Refer Level 3', targetvalue=70, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:32.769', recordupdateddatetime='2018-01-17 15:49:32.769', recordcreatedby='ZA', recordupdateby='ZA', itemcode='07'
+WHERE targetdetailspk=4;
+UPDATE public.d_target_details
+SET targetmasterpk=1, itemname='New Applications', targetvalue=90, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:36.498', recordupdateddatetime='2018-01-17 15:49:36.498', recordcreatedby='ZA', recordupdateby='ZA', itemcode=NULL
+WHERE targetdetailspk=5;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Fraud Refer', targetvalue=20, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:38.956', recordupdateddatetime='2018-01-17 15:49:38.956', recordcreatedby='ZA', recordupdateby='ZA', itemcode='04'
+WHERE targetdetailspk=6;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Refer Level 1', targetvalue=35, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:41.995', recordupdateddatetime='2018-01-17 15:49:41.995', recordcreatedby='ZA', recordupdateby='ZA', itemcode='05'
+WHERE targetdetailspk=7;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Refer Level 2', targetvalue=45, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:44.579', recordupdateddatetime='2018-01-17 15:49:44.579', recordcreatedby='ZA', recordupdateby='ZA', itemcode='06'
+WHERE targetdetailspk=8;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Declined', targetvalue=50, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:50:00.998', recordupdateddatetime='2018-01-17 15:50:00.998', recordcreatedby='ZA', recordupdateby='ZA', itemcode='11'
+WHERE targetdetailspk=9;
+-!|
+|commit|
+*!
+
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 10              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/remove-local-file.sh ${dbname} ${mstrServer}|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+!* '''Then''' Compare the data on source and target
+!*> Load CSV file into DB
+!|Execute|DROP TABLE IF EXISTS dbfit_test.app_dash1 CASCADE|
+
+|commit|
+
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('app_dash1','/home/jenkins/workspace/-!${dbname}!-/Applications_Received_Dataset.csv',12);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+#!|Store Query|!--!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!-  select  applicationstatus
+,curr.no_of_applications, days 
+,tar.targetvalue,(tar.targetvalue *days)::integer target_applications ,round((no_of_applications/(tar.targetvalue *days)*100),2) per_new_app
+from
+(select case when applicationstatus='Incomplete' then 'New' else applicationstatus end applicationstatus
+,count(applicationnumber) no_of_applications, ('2018-01-07'::date - '2016-01-04'::Date) days
+from
+(
+select applicationstatus, applicationnumber
+,rank() OVER (PARTITION BY applicationnumber
+ORDER BY (concat (cast (applicationupdatelocaldatekey as text), cast(applicationupdatelocaltimekey as text))) asc)  as rnk 
+
+from f_application_decision fad
+inner join d_time dt on fad.applicationupdatelocaltimekey = dt.timepk
+where lower(applicationstatus) in ('incomplete') 
+and applicationupdatelocaltimestamp between '20160104' and '20180107'
+order by applicationnumber,applicationupdatetimestamp asc
+) a
+where rnk=1
+group by applicationstatus,days
+) curr
+,(SELECT  itemname, targetvalue
+FROM public.d_target_details
+where itemname='New Applications') tar  -!|source_data|
+
+|commit|
+*!
+!|Query|<<source_data|
+|applicationstatus|no_of_applications|days|targetvalue|target_applications|per_new_app |
+|New              |999               |734 |90.00|66060|1.51|
+#|compare stored queries hide matching rows|source_data|target_data| 
+#|month1|system_decision|app_amount|
+*!
+*!

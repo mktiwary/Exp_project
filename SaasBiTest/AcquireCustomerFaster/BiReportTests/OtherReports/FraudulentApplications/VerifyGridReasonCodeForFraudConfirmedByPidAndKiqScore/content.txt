@@ -1,0 +1,126 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:'''  This is test to verify Grid data for '''Fraudulent Applications Report'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Verify Grid data Number of Reason Codes used for Fraud Confirmed Applications by Pidscore
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+
+!|Execute|delete from public.f_application_decision_reason_code |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} fraud_application/f_application_decision.sql|x|
+|contains|x.stdout|Insert Successful|
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} fraud_application/f_application_decision_reason_code.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!*> '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 25              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Fraudulent_Applications_Dataset_2.csv|
+*!
+*!
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.fraud_report_ds21 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('fraud_report_ds21','/home/jenkins/workspace/-!${dbname}!-/Fraudulent_Applications_Dataset_2.csv',5);
+END $$;
+-!|
+
+|commit|
+*!
+
+!*> Update local !-DbFit-! Table to remove &gt; and &lt;
+!|ConnectUsingFile|${dbfitPostgres}|
+
+|Execute| update dbfit_test.fraud_report_ds21 set kiq_score= replace(replace(kiq_score,'&gt;','>'),'&lt;','<'),pid_score= replace(replace(pid_score,'&gt;','>'),'&lt;','<') |
+
+|commit|
+*!
+
+!*> Microstrategy Data (Target Data)
+!|Store Query| select reasoncode, sum("LT200"::int) as ">= 0 < 200", sum("LT500"::int) as ">= 200 < 500", sum("LT1000"::int) as ">= 500 < 1000", sum("LT2500"::int) as ">= 1000 < 2500", sum("GT2500"::int) as ">= 2500" from (select reason_codes as reasoncode, case when pid_score = '>= 0 < 200' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT200", case when pid_score = '>= 200 < 500' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT500", case when pid_score = '>= 500 < 1000' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT1000", case when pid_score = '>= 1000 < 2500' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT2500", case when pid_score = '>= 2500' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "GT2500" from dbfit_test.fraud_report_ds21 group by reason_codes, pid_score) x group by reasoncode order by reasoncode |target_data|
+
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query| select FADRC.decisionsortedreasoncode as reasoncode, SUM(case when DSB.scorebandname ='>= 0 < 200' then 1 else 0 end) ">= 0 < 200", SUM(case when DSB.scorebandname ='>= 200 < 500' then 1 else 0 end) ">= 200 < 500", SUM(case when DSB.scorebandname ='>= 500 < 1000' then 1 else 0 end) ">= 500 < 1000", SUM(case when DSB.scorebandname ='>= 1000 < 2500' then 1 else 0 end) ">= 1000 < 2500", SUM(case when DSB.scorebandname ='>= 2500' then 1 else 0 end) ">= 2500" from f_application_decision FAD left join d_score_bands DSB on FAD.pidscore >= DSB.scorefrom and FAD.pidscore <= DSB.scoreto join f_application_decision_reason_code FADRC on FAD.correlationid = FADRC.correlationid where DSB.description ='pidscore' and FAD.fraudconfirmed ='y' group by FADRC.decisionsortedreasoncode order by FADRC.decisionsortedreasoncode |source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|reasoncode?|>= 0 < 200?|>= 200 < 500?|>= 500 < 1000?|>= 1000 < 2500?|>= 2500?|
+*!
+*!
+!4 '''Test 2:''' Verify Grid data Number of Reason Codes used for Fraud Confirmed Applications by Kiqscore
+
+!*> '''Then''' verify the source and target data (SQL Query from BI Datastore and CSV MSTR file)
+
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query| select reasoncode, sum("LT200"::int) as ">= 0 < 200", sum("LT500"::int) as ">= 200 < 500", sum("LT1000"::int) as ">= 500 < 1000", sum("LT2500"::int) as ">= 1000 < 2500", sum("GT2500"::int) as ">= 2500" from (select reason_codes as reasoncode, case when kiq_score = '>= 0 < 200' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT200", case when kiq_score = '>= 200 < 500' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT500", case when kiq_score = '>= 500 < 1000' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT1000", case when kiq_score = '>= 1000 < 2500' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "LT2500", case when kiq_score = '>= 2500' then sum(coalesce(cast(nullif(number_of_applications_with_decisions,'') as integer),0)) else 0 end as "GT2500" from dbfit_test.fraud_report_ds21 group by reason_codes, kiq_score) x group by reasoncode order by reasoncode |target_data|
+
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query| select FADRC.decisionsortedreasoncode as reasoncode, SUM(case when DSB.scorebandname ='>= 0 < 200' then 1 else 0 end) ">= 0 < 200", SUM(case when DSB.scorebandname ='>= 200 < 500' then 1 else 0 end) ">= 200 < 500", SUM(case when DSB.scorebandname ='>= 500 < 1000' then 1 else 0 end) ">= 500 < 1000", SUM(case when DSB.scorebandname ='>= 1000 < 2500' then 1 else 0 end) ">= 1000 < 2500", SUM(case when DSB.scorebandname ='>= 2500' then 1 else 0 end) ">= 2500" from f_application_decision FAD left join d_score_bands DSB on FAD.kiqscore >= DSB.scorefrom and FAD.kiqscore <= DSB.scoreto join f_application_decision_reason_code FADRC on FAD.correlationid = FADRC.correlationid where DSB.description ='kiqscore' and FAD.fraudconfirmed ='y' group by FADRC.decisionsortedreasoncode order by FADRC.decisionsortedreasoncode |source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|reasoncode?|>= 0 < 200?|>= 200 < 500?|>= 500 < 1000?|>= 1000 < 2500?|>= 2500?|
+*!
+*!

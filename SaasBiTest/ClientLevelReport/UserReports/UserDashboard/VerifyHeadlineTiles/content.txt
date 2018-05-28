@@ -1,0 +1,191 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify the count of values in the '''Headline Tiles of User Dashboard Report'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from clientaudit.f_user_audit_activity |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} user_dashboard/f_user_audit_activity.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!*> '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to .SaasBiTest.ClientLevelReport.UserReports.UserDashboard.DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 25              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} User_Dashboard_Dataset_2.csv|
+*!
+*!
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.user_report_ds21 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('user_report_ds21','/home/jenkins/workspace/-!${dbname}!-/User_Dashboard_Dataset_2.csv',4);
+END $$;
+
+-!|
+
+|commit|
+*!
+#!*> Microstrategy Data (Target Data)
+#!|Store Query|!- -!|target_data|
+
+*!
+
+#!* Compare source data with target data
+#!*< Setup
+#!|dbfit.PostgresTest                       |
+#!|ConnectUsingFile|${env} |
+#|set option|bind symbols|false|
+#*!
+#!*> Source Query
+#!|Store Query|!-  -!|source_data|
+#*!
+
+#|compare stored queries|source_data|target_data| 
+#|TotalUsers_Cnt|
+#*!
+#*!
+
+!4 '''Test 1:''' Verify the Count of Total Active Users on Headline Tile
+
+!*> '''Then''' Compare the data on source and target
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select replace("number_of_user1s_(distinct)",',','')::int as TotalActUsers_Cnt from dbfit_test.user_report_ds21 -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select count(distinct userid)::int as TotalActUsers_Cnt from (select userid,eventname, eventlocaltimestamp from clientaudit.f_user_audit_activity where eventname='Login' and eventtimestamp <= date(now()) group by userid,eventname, eventtimestamp order by userid, eventtimestamp )x  -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|TotalActUsers_Cnt|
+*!
+*!
+
+!4 '''Test 2:''' Verify the Count of Total Active Users in last 12 Months on Headline Tile
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+
+!|Store Query|!- select replace(number_of_user1s_for_the_last_12_months,',','')::int as TotActUsersLast12Mths_Cnt from dbfit_test.user_report_ds21 -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select count(distinct userid)::int as TotActUsersLast12Mths_Cnt from ( select userid,eventname, eventlocaltimestamp from clientaudit.f_user_audit_activity where eventname='Login' and eventlocaltimestamp >= date(now()) - interval '365 days' group by userid,eventname, eventtimestamp order by userid, eventtimestamp )x  -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|TotActUsersLast12Mths_Cnt|
+*!
+*!
+
+!4 '''Test 3:''' Verify the Count of Total Active Users in last 60 Days on Headline Tile
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select replace(number_of_user1s_for_the_last_60_days,',','')::int as TotActUsersLast60Days_Cnt from dbfit_test.user_report_ds21 -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select count(distinct userid)::int as TotActUsersLast60Days_Cnt from ( select userid,eventname, eventlocaltimestamp from clientaudit.f_user_audit_activity where eventname='Login' and eventlocaltimestamp >= date(now()) - interval '60 days' group by userid,eventname, eventtimestamp order by userid, eventtimestamp )x   -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|TotActUsersLast60Days_Cnt|
+*!
+*!
+
+!4 '''Test 4:''' Verify the Count of Total Active Users in last 30 Days on Headline Tile
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select replace(number_of_user1s_for_the_last_30_days,',','')::int as TotActUsersLast30Days_Cnt from dbfit_test.user_report_ds21 -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select count(distinct userid)::int as TotActUsersLast30Days_Cnt from ( select userid,eventname, eventlocaltimestamp from clientaudit.f_user_audit_activity where eventname='Login' and eventlocaltimestamp >= date(now()) - interval '30 days' group by userid,eventname, eventtimestamp order by userid, eventtimestamp )x -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|TotActUsersLast30Days_Cnt|
+*!
+*!

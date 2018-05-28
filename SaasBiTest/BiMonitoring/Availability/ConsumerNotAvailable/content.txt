@@ -1,0 +1,28 @@
+@case_id=6781706
+@section=BI_Monitoring
+@priority=P2
+@reference=ANA-131396
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Manual
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' This test is ensure that splunk display correct metrics for consumer availability
+
+Jira: https://jira.uk.experian.local/browse/ANA-131396
+
+!4 '''Test 1:''' This test is to ensure that when consumer is not running, and BI monitoring is deployed to monitor its availability, splunk shows avalability correctly.
+
+!3 Steps:
+   1. Deploy Consumer and monitoring solution in test environement
+   2. Ensure that BI Monitoring solution is pointing to same kafka topic as BI consumer
+   3. Login to splunk
+   4. Search for availability metrics (ex: index="bi_monitoring_dev_gb" host="bi-change as per host details" availability)
+   5. Metrics should show details as below
+   	 		isAvailable:	 0	
+  			measurmentTime:	 2018-04-05T13:26:55.965504	
+  			metric:	 Availability	
+  	 		recordTime:	 2018-04-05T10:19:03.043000+00:00	
+  	 		schema:	 pads	
+  	 		timeDeltaMilliseconds:	 11272922.504	

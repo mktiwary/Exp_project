@@ -1,0 +1,4 @@
+!img /files/images/experian_logo.png
+
+!3 This test suit contains tests for individual components (Ex: RDS (postgres), Consumer, Microstrategy)
+!contents -R2 -g -p -f -h

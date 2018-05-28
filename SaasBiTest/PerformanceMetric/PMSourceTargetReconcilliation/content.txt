@@ -1,0 +1,59 @@
+@section=Performance_Metric_Consumer
+@priority=P2
+@reference=ANA-130908
+@test_type=User_Story_Acceptance
+@use_case=
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!*> Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env_billing} |
+*!
+!3 '''Description:'''  Purpose of the test is to verify Source and Target Reconciliation of Messages. 
+
+!4 '''Test 1:''' This test is to verify that Messages sent from source and one in target is same
+
+!*> '''Given''' That when 6 messages are sent from source (!-PowerCurve-!)
+!*> Clear Table
+!|Execute| delete from public.f_performance_metrics|
+
+|commit|
+*!
+
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command   |kafka-message/kafka-send-message-wt-topic.sh ${perfmetric_topic}  Perfmetric/PM_SourceTargetRecon.json|
+|command   |echo "Message Sent"|
+*!
+!*< Sleep
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|sleep 3|
+*!
+*!
+!*> '''when''' messages received and processed by Billing Consumer
+Automatic kafka process consume and process messages
+*!
+!*> '''Then''' all 6 messages are inserted into BI Datastore
+!|Query|select * from public.f_performance_metrics order by 4|
+|clientid?|businessserviceid?|entrytimestamp?|entrydatekey?|entrytimekey?|component?|scid?|userid?|serviceid?|txid?|businesskey?|trackedexecutionid?|endtoend?|suminternal?|sumexternal?|sumcxcall?|sumeacall?|sumdacall?|sumpersistence?|
+|public|public|2018-03-08 13:38:45|20180308|1338|BPS|8c7f440c-6149-47b3-add2-94c26a062b09|admin|5|2859|CC000000020574|WEB-RESUME|2867|2181|686|686|0|0|0|
+|public|public|2018-03-08 13:38:48|20180308|1338|BPS|14b1f44f-6cba-4c64-8aea-9b6a93437786|admin|5|2859|CC000000020574|WEB-RESUME|149|149|0|0|0|0|0|
+|public|public|2018-03-08 13:38:48|20180308|1338|BPS|1aedc778-7f6b-4f0e-bd63-e4ce4503987b|admin|5|2859|CC000000020574|WEB-RESUME|3182|938|2244|0|1917|90|327|
+|public|public|2018-03-08 13:38:52|20180308|1338|BPS|23ce8ba0-a5a3-4c42-8a24-98432597fdb3|admin|5|2859|CC000000020574|WEB-RESUME|155|155|0|0|0|0|0|
+|public|public|2018-03-08 13:39:20|20180308|1339|BPS|0fbcb517-1469-491a-aeb5-f1a1220fa026|user|1|2860|CC000000020580|SCREENLESS-REST-CREATE|2407|570|1837|39|1439|9|359|
+|public|public|2018-03-08 13:39:23|20180308|1339|BPS|0cb768ea-d757-4c2d-a3b7-faf9044efd7f|user|1|2861|CC000000020595|SCREENLESS-REST-CREATE|1695|191|1504|31|1392|15|81|
+
+!|query|select jsondetails::text from f_performance_metrics|
+|jsondetails|
+|[{"timestamp": "2018-03-08 13:38:46", "executionTime": "635", "additionalData": "Check Blacklisted Customer Connectivity Call", "trackedExecutionId": "CONNECTIVITY-CALL-NODE"}, {"timestamp": "2018-03-08 13:38:47", "executionTime": "51", "additionalData": "Check Existing Customer Connectivity Call", "trackedExecutionId": "CONNECTIVITY-CALL-NODE"}, {"timestamp": "2018-03-08 13:38:48", "executionTime": "2771", "additionalData": "NEW:New App", "trackedExecutionId": "WEB-EXEC-FILTER"}, {"timestamp": "2018-03-08 13:38:48", "executionTime": "2867", "additionalData": "", "trackedExecutionId": "WEB-RESUME"}]|
+|[{"timestamp": "2018-03-08 13:38:48", "executionTime": "123", "additionalData": "NEW:New App", "trackedExecutionId": "WEB-EXEC-FILTER"}, {"timestamp": "2018-03-08 13:38:48", "executionTime": "149", "additionalData": "", "trackedExecutionId": "WEB-RESUME"}]|
+|[{"timestamp": "2018-03-08 13:38:49", "executionTime": "31", "additionalData": "Alpha Missing Info", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:38:49", "executionTime": "8", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:38:51", "executionTime": "1880", "additionalData": "Alpha Bureau Access Strategy", "trackedExecutionId": "ENRICHMENT"}, {"timestamp": "2018-03-08 13:38:51", "executionTime": "1917", "additionalData": "AlphaBureau Enrichment Call", "trackedExecutionId": "ENRICHMENT-CALL-NODE"}, {"timestamp": "2018-03-08 13:38:51", "executionTime": "40", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:38:51", "executionTime": "11", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:38:52", "executionTime": "327", "additionalData": "Persist", "trackedExecutionId": "DB-PERSIST-NODE"}, {"timestamp": "2018-03-08 13:38:52", "executionTime": "3149", "additionalData": "NEW:New App", "trackedExecutionId": "WEB-EXEC-FILTER"}, {"timestamp": "2018-03-08 13:38:52", "executionTime": "3182", "additionalData": "", "trackedExecutionId": "WEB-RESUME"}]|
+|[{"timestamp": "2018-03-08 13:38:52", "executionTime": "139", "additionalData": "NEW:New App", "trackedExecutionId": "WEB-EXEC-FILTER"}, {"timestamp": "2018-03-08 13:38:52", "executionTime": "155", "additionalData": "", "trackedExecutionId": "WEB-RESUME"}]|
+|[{"timestamp": "2018-03-08 13:39:20", "executionTime": "23", "additionalData": "Check Blacklisted Customer Connectivity Call", "trackedExecutionId": "CONNECTIVITY-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:20", "executionTime": "16", "additionalData": "Check Existing Customer Connectivity Call", "trackedExecutionId": "CONNECTIVITY-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:20", "executionTime": "1", "additionalData": "Alpha Missing Info", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:20", "executionTime": "1", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:20", "executionTime": "284", "additionalData": "Search and Cache Bureau Results - 1 Applicant_eec6145b86bc4da7a798273756bb8966", "trackedExecutionId": "DB-SEARCH-NODE"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "1430", "additionalData": "Alpha Bureau Access Strategy", "trackedExecutionId": "ENRICHMENT"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "1439", "additionalData": "AlphaBureau Enrichment Call", "trackedExecutionId": "ENRICHMENT-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "6", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "1", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "75", "additionalData": "Persist", "trackedExecutionId": "DB-PERSIST-NODE"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "2227", "additionalData": "NEW:Screenless New App", "trackedExecutionId": "SCREENLESS-EXEC-FILTER"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "2328", "additionalData": "", "trackedExecutionId": "SCREENLESS"}, {"timestamp": "2018-03-08 13:39:22", "executionTime": "2407", "additionalData": "", "trackedExecutionId": "SCREENLESS-REST-CREATE"}]|
+|[{"timestamp": "2018-03-08 13:39:23", "executionTime": "21", "additionalData": "Check Blacklisted Customer Connectivity Call", "trackedExecutionId": "CONNECTIVITY-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:23", "executionTime": "10", "additionalData": "Check Existing Customer Connectivity Call", "trackedExecutionId": "CONNECTIVITY-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:23", "executionTime": "1", "additionalData": "Alpha Missing Info", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:23", "executionTime": "2", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:23", "executionTime": "10", "additionalData": "Search and Cache Bureau Results - 1 Applicant_eec6145b86bc4da7a798273756bb8966", "trackedExecutionId": "DB-SEARCH-NODE"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "1384", "additionalData": "Alpha Bureau Access Strategy", "trackedExecutionId": "ENRICHMENT"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "1392", "additionalData": "AlphaBureau Enrichment Call", "trackedExecutionId": "ENRICHMENT-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "4", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "8", "additionalData": "Alpha Credit Card", "trackedExecutionId": "DA-CALL-NODE"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "71", "additionalData": "Persist", "trackedExecutionId": "DB-PERSIST-NODE"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "1679", "additionalData": "NEW:Screenless New App", "trackedExecutionId": "SCREENLESS-EXEC-FILTER"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "1693", "additionalData": "", "trackedExecutionId": "SCREENLESS"}, {"timestamp": "2018-03-08 13:39:25", "executionTime": "1695", "additionalData": "", "trackedExecutionId": "SCREENLESS-REST-CREATE"}]|
+*!

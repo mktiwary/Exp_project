@@ -1,0 +1,151 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:'''  This is test to verify the Bar chart data for '''Applications Flagged as Fraud'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Verify Bar Chart data for Application Flagged as Fraud by '''Month'''
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} fraud_application/f_application_decision.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!*> '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 25              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Fraudulent_Applications_Dataset.csv|
+*!
+*!
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.fraud_report_ds12 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('fraud_report_ds12','/home/jenkins/workspace/-!${dbname}!-/Fraudulent_Applications_Dataset.csv',16);
+END $$;
+-!|
+
+|commit|
+*!
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select month as yearmonth, sum(coalesce(cast(nullif(distinct_fraud_flagged,'') as integer),0))::int as no_of_fraudflagged,
+sum(coalesce(cast(nullif("number_of_applications_with_decisions_(distinct)",'') as integer),0)),
+round(sum(coalesce(cast(nullif(distinct_fraud_flagged,'') as integer),0))/sum(coalesce(cast(nullif("number_of_applications_with_decisions_(distinct)",'') as integer),0))::decimal*100,2) as percentageflagged
+from dbfit_test.fraud_report_ds12
+group by month
+order by month -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select monthA as yearmonth, no_of_fraudflagged::int, round(no_of_fraudflagged/total_applications::decimal*100,2) as PercentageFlagged 
+from
+(
+select A.No_of_FraudFlagged, A.monthA, B.Total_Applications, B.monthB from
+(
+select count(distinct(applicationnumber)) No_of_FraudFlagged, to_char(applicationcreationlocaltimestamp,'YYYY-MM') as monthA
+from f_application_decision where worklist ='w0' 
+group by to_char(applicationcreationlocaltimestamp,'YYYY-MM')
+) A JOIN
+(
+select count(distinct(applicationnumber)) Total_Applications, to_char(applicationcreationlocaltimestamp,'YYYY-MM') as monthB
+from f_application_decision
+group by to_char(applicationcreationlocaltimestamp,'YYYY-MM')
+) B
+ON A.monthA = B.monthB
+) c order by monthA -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|yearmonth?|no_of_fraudflagged?|percentageflagged?|
+*!
+*!
+!4 '''Test 2:''' Verify Bar Chart data for Applications Flagged as Fraud by '''Day'''
+
+!*> '''Then''' verify the source and target data (SQL Query from BI Datastore and CSV MSTR file) 
+
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select date::date as date1, sum(coalesce(cast(nullif(distinct_fraud_flagged,'') as integer),0))::int as no_of_fraudflagged,
+round(sum(coalesce(cast(nullif(distinct_fraud_flagged,'') as integer),0))/sum(coalesce(cast(nullif("number_of_applications_with_decisions_(distinct)",'') as integer),0))::decimal*100,2) as percentageflagged
+from dbfit_test.fraud_report_ds12
+group by date1
+order by date1 -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select dateB::date as date1, no_of_fraudflagged::int, round(no_of_fraudflagged/total_applications::decimal*100,2) as PercentageFlagged
+from
+(
+select coalesce(A.No_of_FraudFlagged,0) No_of_FraudFlagged, A.dateA, B.Total_Applications, B.dateB from
+(
+select count(distinct applicationnumber) No_of_FraudFlagged, 
+date(applicationcreationlocaltimestamp) as dateA from f_application_decision where worklist ='w0' 
+group by applicationcreationlocaltimestamp
+) A right JOIN
+(
+select count(distinct applicationnumber) Total_Applications, 
+date(applicationcreationlocaltimestamp) as dateB from f_application_decision 
+group by applicationcreationlocaltimestamp
+) B
+ON A.dateA = B.dateB
+) c order by dateB -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|date1?|no_of_fraudflagged?|percentageflagged?|
+*!
+*!

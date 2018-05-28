@@ -1,0 +1,7 @@
+!img /files/images/experian_logo.png
+
+!3 This test suite contains manual test for Throughput monitoring
+
+Ref: https://confluenceglobal.experian.local/confluence/display/GSPD/BI+Monitoring
+
+!contents -R2 -g -p -f -h

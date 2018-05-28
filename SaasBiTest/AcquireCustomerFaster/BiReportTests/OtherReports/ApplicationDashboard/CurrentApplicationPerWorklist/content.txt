@@ -1,0 +1,307 @@
+!img /files/images/experian_logo.png
+!lastmodified
+!3 '''Description:''' 
+ This is integration test to verify '''Current Applications per worklist''' on report matches with data on BI data store .
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that count for "Current Applications per worklist" matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+!*> Insert Data
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_dashboard/curr_app_per_worklist.sql|x|
+|contains|x.stdout|Insert Successful|
+
+|commit|
+
+*!
+!*> Update CreationDate
+!|Execute| !-update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '30 day')  	where	applicationnumber=	'212461245'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '31 day') 	where	applicationnumber=	'212461248'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '27 day')  	where	applicationnumber=	'212461251'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '25 day') 	where	applicationnumber=	'212461252'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '35 day') 	where	applicationnumber=	'212461253'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '29 day')  	where	applicationnumber=	'212461254'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '32 day') 	where	applicationnumber=	'212461255'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '26 day') 	where	applicationnumber=	'212461257'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '23 day') 	where	applicationnumber=	'212461258'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '27 day')  	where	applicationnumber=	'212461259'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '27 day')  	where	applicationnumber=	'212461260'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '37 day') 	where	applicationnumber=	'212461261'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '32 day') 	where	applicationnumber=	'212461262'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '35 day') 	where	applicationnumber=	'212461263'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '19 day') 	where	applicationnumber=	'212461264'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '30 day') 	where	applicationnumber=	'212461265'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '38 day') 	where	applicationnumber=	'212461266'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '38 day') 	where	applicationnumber=	'212461267'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '24 day')  	where	applicationnumber=	'212461269'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '29 day')  	where	applicationnumber=	'212461270'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '29 day')  	where	applicationnumber=	'212461271'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '25 day') 	where	applicationnumber=	'212461272'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '19 day') 	where	applicationnumber=	'212461273'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '29 day')  	where	applicationnumber=	'212461274'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '26 day') 	where	applicationnumber=	'212461275'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '23 day') 	where	applicationnumber=	'212461276'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '39 day') 	where	applicationnumber=	'212461277'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '37 day') 	where	applicationnumber=	'212461278'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '27 day')  	where	applicationnumber=	'212461279'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '27 day')  	where	applicationnumber=	'212461280'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '37 day') 	where	applicationnumber=	'212461281'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '28 day')  	where	applicationnumber=	'212461283'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '27 day')  	where	applicationnumber=	'212461284'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '19 day') 	where	applicationnumber=	'212461285'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '35 day') 	where	applicationnumber=	'212461286'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '31 day') 	where	applicationnumber=	'212461287'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '39 day') 	where	applicationnumber=	'212461288'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '36 day') 	where	applicationnumber=	'212461289'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '23 day') 	where	applicationnumber=	'212461290'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '29 day')  	where	applicationnumber=	'212461291'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '38 day') 	where	applicationnumber=	'212461292'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '24 day')  	where	applicationnumber=	'212461293'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '23 day') 	where	applicationnumber=	'212461294'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '26 day') 	where	applicationnumber=	'212461297'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '26 day') 	where	applicationnumber=	'212461299'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '24 day')  	where	applicationnumber=	'212461301'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '35 day') 	where	applicationnumber=	'212461302'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '28 day')  	where	applicationnumber=	'212461303'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '19 day') 	where	applicationnumber=	'212461304'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '19 day') 	where	applicationnumber=	'212461305'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '29 day')  	where	applicationnumber=	'212461306'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '38 day') 	where	applicationnumber=	'212461307'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '37 day') 	where	applicationnumber=	'212461308'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '32 day') 	where	applicationnumber=	'212461309'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '36 day') 	where	applicationnumber=	'212461310'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '26 day') 	where	applicationnumber=	'212461311'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '29 day')  	where	applicationnumber=	'212461312'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '37 day') 	where	applicationnumber=	'212461313'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '38 day') 	where	applicationnumber=	'212461314'	;
+update	public.f_application_decision	set 	applicationcreationtimestamp=	(now()- interval '27 day')  	where	applicationnumber=	'212461315'	;
+
+ -!|
+
+|commit|
+*! 
+!*> Update updatetimestamp
+!|Execute|!-
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1 day') 	where	applicationnumber=	'212461252'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day')  	where	applicationnumber=	'212461259'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day')  	where	applicationnumber=	'212461261'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '3 day') 	where	applicationnumber=	'212461262'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1 day') 	where	applicationnumber=	'212461263'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1 day') 	where	applicationnumber=	'212461265'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day') 	where	applicationnumber=	'212461272'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1 day')  	where	applicationnumber=	'212461277'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day') 	where	applicationnumber=	'212461279'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '3 day')  	where	applicationnumber=	'212461281'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1 day') 	where	applicationnumber=	'212461287'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day')  	where	applicationnumber=	'212461290'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day') 	where	applicationnumber=	'212461297'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '3 day') 	where	applicationnumber=	'212461303'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '4 day')  	where	applicationnumber=	'212461306'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day') 	where	applicationnumber=	'212461308'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '5 day') 	where	applicationnumber=	'212461311'	;	
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '8 day') 	where	applicationnumber=	'212461258'	and applicationstatus='Fraud Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1.5 day')  	where	applicationnumber=	'212461266'	and applicationstatus='Fraud Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.2 day')  	where	applicationnumber=	'212461270'	and applicationstatus='Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '9 day')  	where	applicationnumber=	'212461280'	and applicationstatus='Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day') 	where	applicationnumber=	'212461294'	and applicationstatus='Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '3 day') 	where	applicationnumber=	'212461305'	and applicationstatus='Error'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '4 day')  	where	applicationnumber=	'212461307'	and applicationstatus='Error'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1 day')  	where	applicationnumber=	'212461309'	and applicationstatus='Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1 day') 	where	applicationnumber=	'212461313'	and applicationstatus='Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2 day') 	where	applicationnumber=	'212461314'	and applicationstatus='Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.7 day') 	where	applicationnumber=	'212461245'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1.7 day') 	where	applicationnumber=	'212461264'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.5 day')  	where	applicationnumber=	'212461266'	and applicationstatus='Fraud Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.6 day') 	where	applicationnumber=	'212461267'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.5 day')  	where	applicationnumber=	'212461270'	and applicationstatus='Refer'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.0 day') 	where	applicationnumber=	'212461271'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.2 day')  	where	applicationnumber=	'212461273'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.2 day')  	where	applicationnumber=	'212461274'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.8 day') 	where	applicationnumber=	'212461278'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.5 day')  	where	applicationnumber=	'212461284'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.4 day')  	where	applicationnumber=	'212461286'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.1 day') 	where	applicationnumber=	'212461289'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '1.9 day')  	where	applicationnumber=	'212461291'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.6 day') 	where	applicationnumber=	'212461292'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.6 day') 	where	applicationnumber=	'212461299'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.0 day') 	where	applicationnumber=	'212461302'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.7 day') 	where	applicationnumber=	'212461310'	and applicationstatus='Approved'	;
+update	public.f_application_decision	set 	applicationupdatetimestamp=	(now()- interval '2.0 day') 	where	applicationnumber=	'212461312'	and applicationstatus='Approved'	;
+
+-!|
+
+|commit|
+*!
+!*> Update target values (SLA)
+!|Execute|!-
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Booked', targetvalue=80, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:25.602', recordupdateddatetime='2018-01-17 15:49:25.602', recordcreatedby='ZA', recordupdateby='ZA', itemcode='10'
+WHERE targetdetailspk=1;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Accepted', targetvalue=75, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:27.485', recordupdateddatetime='2018-01-17 15:49:27.485', recordcreatedby='ZA', recordupdateby='ZA', itemcode='09'
+WHERE targetdetailspk=2;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Approved', targetvalue=40, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:29.700', recordupdateddatetime='2018-01-17 15:49:29.700', recordcreatedby='ZA', recordupdateby='ZA', itemcode='08'
+WHERE targetdetailspk=3;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Refer Level 3', targetvalue=70, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:32.769', recordupdateddatetime='2018-01-17 15:49:32.769', recordcreatedby='ZA', recordupdateby='ZA', itemcode='07'
+WHERE targetdetailspk=4;
+UPDATE public.d_target_details
+SET targetmasterpk=1, itemname='New Applications', targetvalue=90, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:36.498', recordupdateddatetime='2018-01-17 15:49:36.498', recordcreatedby='ZA', recordupdateby='ZA', itemcode=NULL
+WHERE targetdetailspk=5;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Fraud Refer', targetvalue=20, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:38.956', recordupdateddatetime='2018-01-17 15:49:38.956', recordcreatedby='ZA', recordupdateby='ZA', itemcode='04'
+WHERE targetdetailspk=6;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Refer Level 1', targetvalue=35, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:41.995', recordupdateddatetime='2018-01-17 15:49:41.995', recordcreatedby='ZA', recordupdateby='ZA', itemcode='05'
+WHERE targetdetailspk=7;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Refer Level 2', targetvalue=45, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:49:44.579', recordupdateddatetime='2018-01-17 15:49:44.579', recordcreatedby='ZA', recordupdateby='ZA', itemcode='06'
+WHERE targetdetailspk=8;
+UPDATE public.d_target_details
+SET targetmasterpk=2, itemname='Declined', targetvalue=50, status=NULL, recordvalidfrom=NULL, recordvalidto=NULL, recordcreateddatetime='2018-01-17 15:50:00.998', recordupdateddatetime='2018-01-17 15:50:00.998', recordcreatedby='ZA', recordupdateby='ZA', itemcode='11'
+WHERE targetdetailspk=9;
+-!|
+|commit|
+*!
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 10              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Applications_Received_Dataset.csv|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+!* '''Then''' Compare the data on source and target
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.app_dash_4 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('app_dash_4','/home/jenkins/workspace/-!${dbname}!-/Applications_Received_Dataset.csv',12);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+#!|Store Query|!--!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!-
+with worklist_apps as(
+select --applicationupdatetimestamp last_updated,applicationstatus,
+worklist, count(worklist) no_of_app_in_wrklst
+--, floor ((extract(epoch FROM now()-applicationcreationtimestamp )/(3600))) as time_taken_hr
+from
+(
+select applicationnumber,producttype, applicationcreationtimestamp,applicationupdatetimestamp,applicationstatus,worklist
+,rank() OVER (PARTITION BY applicationnumber ORDER BY applicationupdatetimestamp DESC) rnk
+from public.f_application_decision
+order by applicationnumber, applicationcreationtimestamp
+) a
+where rnk=1
+and lower(applicationstatus) not in ('booked', 'declined', 'withdrawn','accepted')
+group by worklist
+)
+
+,time_taken as ( 
+select worklist,applicationnumber, time_taken_hr ttl_time_taken_hr,td.targetvalue sla_in_hr
+from (
+select --applicationupdatetimestamp last_updated,applicationstatus,
+worklist,applicationnumber
+, floor ((extract(epoch FROM now()-applicationupdatetimestamp )/(3600))) as time_taken_hr
+from
+(
+select applicationnumber,producttype, applicationcreationtimestamp,applicationupdatetimestamp,applicationstatus,worklist
+,rank() OVER (PARTITION BY applicationnumber ORDER BY applicationupdatetimestamp DESC) rnk
+from public.f_application_decision
+order by applicationnumber, applicationcreationtimestamp
+) a
+where rnk=1
+and lower(applicationstatus) not in ('booked', 'declined', 'withdrawn','accepted')
+) b
+, public.d_target_details td
+where td.itemcode =b.worklist
+)
+, ttl_time as (
+select worklist,sum(ttl_time_taken_hr)  ttl_time_taken_wrklst --> sla_in_hr then count()
+from time_taken
+group by worklist
+)
+,count_over_sla as (
+select worklist, sum(app_over_sla) app_over_sla,sum(app_below_sla) app_below_sla
+from(
+select worklist, ttl_time_taken_hr,sla_in_hr
+, case when ttl_time_taken_hr > sla_in_hr then count(applicationnumber) else 0 end as app_over_sla
+, case when ttl_time_taken_hr < sla_in_hr then count(applicationnumber) else 0 end as app_below_sla
+from time_taken
+group by worklist,ttl_time_taken_hr,sla_in_hr
+) a
+group by worklist 
+)
+
+
+select wapp.worklist, no_of_app_in_wrklst, sla.app_over_sla, round(((sla.app_below_sla/no_of_app_in_wrklst)*100),2) sla_rate
+from worklist_apps wapp
+,time_taken ti
+,count_over_sla sla
+where wapp.worklist = ti.worklist
+and sla.worklist = ti.worklist
+
+group by wapp.worklist, no_of_app_in_wrklst, sla.app_over_sla,sla.app_below_sla
+order by wapp.worklist
+-!|source_data|
+
+|commit|
+*!
+!|Query|<<source_data|
+|worklist|no_of_app_in_wrklst|app_over_sla|sla_rate|
+|04      |4                  |4           |0       |
+|05      |8                  |7           |12.5    |
+|06      |4                  |3           |25      |
+|07      |6                  |0           |100     |
+|08      |1                  |1           |0       |
+|09      |7                  |2           |71.43   |
+#|compare stored queries hide matching rows|source_data|target_data| 
+#|month1|system_decision|app_amount|
+*!
+*!

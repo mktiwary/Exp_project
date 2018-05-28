@@ -1,0 +1,99 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is a test to verify '''Grid Data on Product Approved/Declined Report for Approved amount of Products which are Approved'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Purpose of this test is to verify data displayed on the Grid for Approved Amount of Products on Approved/Declined report
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision|
+
+|commit|
+
+!|Execute|delete from public.f_product_decision_reason_code|
+
+|commit|
+
+!|Execute|delete from public.d_score_bands|
+
+|commit|
+*!
+!* Insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} prod_approveddeclined/pad_f_application_decision.sql|x|
+|contains|x.stdout|Insert Successful|
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} prod_approveddeclined/pad_f_product_decision_reason_code.sql|x|
+|contains|x.stdout|Insert Successful|
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} prod_approveddeclined/pad_d_score_bands.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit; EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Products_Approved_Declined_Dataset.csv|
+*!
+*!
+
+!* '''Then''' Compare the data on source and target
+
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.pad_report4 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('pad_report4','/home/jenkins/workspace/-!${dbname}!-/Products_Approved_Declined_Dataset.csv',8);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Execute|update dbfit_test.pad_report4 set score_band = replace(replace(score_band,'&gt;','>'),'&lt;','<')|
+
+|commit|
+
+!|Store Query| select decisioner, sum("LT50"::dec) as ">= 0.00 < 49.99", sum("LT100"::dec) as ">= 50.00 < 99.99", sum("LT200"::dec) as ">= 100.00 < 199.99", sum("LT500"::dec) as ">= 200.00 < 499.99", sum("LT1000"::dec) as ">= 500.00 < 999.99" from ( select decisioner, case when score_band='>= 0.00 < 49.99' then sum(replace(approved_amount_of_products,',','')::dec) else 0 end as "LT50", case when score_band='>= 50.00 < 99.99' then sum(replace(approved_amount_of_products,',','')::dec) else 0 end as "LT100", case when score_band='>= 100.00 < 199.99' then sum(replace(approved_amount_of_products,',','')::dec) else 0 end as "LT200", case when score_band='>= 200.00 < 499.99' then sum(replace(approved_amount_of_products,',','')::dec) else 0 end as "LT500", case when score_band='>= 500.00 < 999.99' then sum(replace(approved_amount_of_products,',','')::dec) else 0 end as "LT1000" from dbfit_test.pad_report4 where application_state='Declined' group by decisioner, score_band ) x group by decisioner order by decisioner |target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query| select decisioner, round(SUM("1LT50"::dec)) as ">= 0.00 < 49.99", round(SUM("2LT100"::dec)) as ">= 50.00 < 99.99", round(SUM("3LT200"::dec)) as ">= 100.00 < 199.99", round(SUM("4LT500"::dec)) as ">= 200.00 < 499.99", round(SUM("5LT1000"::dec)) as ">= 500.00 < 999.99" from (select case when decisioner is null then 'System' when decisioner='' then 'System' else decisioner end as decisioner, case when bureauscore>=0 and bureauscore<50 then sum(amountapproved)::dec else 0 end as "1LT50", case when bureauscore>=50 and bureauscore<100 then sum(amountapproved)::dec else 0 end as "2LT100", case when bureauscore>=100 and bureauscore<200 then sum(amountapproved)::dec else 0 end as "3LT200", case when bureauscore>=200 and bureauscore<500 then sum(amountapproved)::dec else 0 end as "4LT500", case when bureauscore>=500 and bureauscore<1000 then sum(amountapproved)::dec else 0 end as "5LT1000", RANK() OVER (PARTITION BY applicationnumber, producttype, productid ORDER BY applicationupdatetimestamp desc) as rnk from f_application_decision where decision = 'DECLINE' group by decisioner, applicationupdatetimestamp, applicationnumber, producttype, productid) AD where AD.rnk=1 group by decisioner order by decisioner |source_data|
+*!
+|compare stored queries|source_data|target_data| 
+|decisioner|>= 0.00 < 49.99?|>= 50.00 < 99.99?|>= 100.00 < 199.99?|>= 200.00 < 499.99?|>= 500.00 < 999.99?|
+*!
+*!

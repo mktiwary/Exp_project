@@ -1,0 +1,4 @@
+!img /files/images/experian_logo.png
+
+!3 This Test Suite contains tests for Approved/Declined report
+!contents -R2 -g -p -f -h

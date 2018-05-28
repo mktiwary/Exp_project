@@ -1,0 +1,66 @@
+@case_id=6528720
+@section=BI_Event_Consumer
+@priority=P1
+@reference=ANA-134325
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!*> Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env} |
+*!
+!3 '''Description:'''  Purpose of the test is to check messages are routed to correct table of Schema based on '''!-ClientId-!''' attribute in JSON message 
+
+
+!*> '''Given''' That messages are sent from Powercurve having different !-ClientId-! (ex - public & hsbc)
+!*> Clear Table
+!|Execute|DROP TABLE IF EXISTS hsbc.f_product_decision_reason_code|
+!|Execute|CREATE SCHEMA IF NOT EXISTS hsbc|
+!|Execute|CREATE TABLE IF NOT EXISTS hsbc.f_product_decision_reason_code as select * from  public.f_product_decision_reason_code|
+
+|commit|
+
+!|Execute|delete from public.f_product_decision_reason_code|
+!|Execute|delete from hsbc.f_product_decision_reason_code|
+
+|commit|
+*!
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command   |kafka-message/kafka-send-message-wt-topic.sh ${topic}  Test_Data/spec2.2/reasoncode-prod-routing-client.json|
+|command   |echo "Message Sent"              |
+!*< Sleep
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|sleep 3|
+*!
+*!
+*!
+!*> '''when''' messages received and processed by consumer process
+Automatic kafka process consumes and process messages
+*!
+!*> '''Then''' Check that messages are inserted into correct Schema and table
+!|Query|!- select count(applicationnumber) No_of_applications, applicationnumber  from public.f_product_decision_reason_code where applicationnumber 
+in ('37468402','37468405','37468406','37468407')
+group by applicationnumber order by applicationnumber -!|
+|No_of_applications?|applicationnumber?|
+|1|37468402|
+|1|37468405|
+|1|37468406|
+|1|37468407|
+
+!|Query|!- select count(applicationnumber) No_of_applications, applicationnumber  from hsbc.f_product_decision_reason_code where applicationnumber in 
+('37468403','37468404','37468408','37468409')
+group by applicationnumber order by applicationnumber -!|
+|No_of_applications?|applicationnumber?|
+|1|37468403|
+|1|37468404|
+|1|37468408|
+|1|37468409|
+
+*!

@@ -1,0 +1,208 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:'''  This is integration test to verify the Bar chart data for '''Number of Active Users by Year, Month, Week & Day'''
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Verify the Bar Chart data for Number of Active Users by Year
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from clientaudit.f_user_audit_activity |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} user_dashboard/f_user_audit_activity.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!*> '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to .SaasBiTest.ClientLevelReport.UserReports.UserDashboard.DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|sleep 25|
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} User_Dashboard_Dataset_5.csv|
+*!
+*!
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.user_report_ds51 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('user_report_ds51','/home/jenkins/workspace/-!${dbname}!-/User_Dashboard_Dataset_5.csv',7);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select year, count(distinct user1)::int as ActiveUsers_Cnt
+from dbfit_test.user_report_ds51 where user1_event ='Login'
+group by year
+order by year-!|target_data|
+
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select year, count(distinct userid)::int ActiveUsers_Cnt from
+(
+select userid,eventname, eventlocaltimestamp, ltrim(rtrim(cast(date_part('year', eventtimestamp) as text))) as year,
+RANK() OVER(partition by userid, ltrim(rtrim(cast(date_part('year', eventtimestamp) as text))) order by eventtimestamp desc) as rnk
+from clientaudit.f_user_audit_activity where eventname='Login'  
+group by userid,eventname, eventtimestamp
+order by userid,eventtimestamp
+)x where x.rnk =1
+group by year 
+order by year -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|year|ActiveUsers_Cnt|
+*!
+*!
+
+!4 '''Test 2:''' Verify the Bar Chart data for Number of Active Users by Month
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select month as yearmonth, count(distinct user1)::int as ActiveUsers_Cnt
+from dbfit_test.user_report_ds51 where user1_event ='Login'
+group by month
+order by month -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select yearmonth, count(distinct userid)::int as ActiveUsers_Cnt from
+(
+select userid,eventname, eventtimestamp,to_char(eventtimestamp, 'YYYY-MM') as Yearmonth, 
+RANK() OVER(partition by userid, to_char(eventtimestamp, 'YYYY-MM') order by eventtimestamp desc) as rnk
+from clientaudit.f_user_audit_activity where eventname='Login' 
+)x where x.rnk =1
+group by yearmonth
+order by yearmonth -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|yearmonth|ActiveUsers_Cnt|
+*!
+*!
+
+!4 '''Test 3:''' Verify the Bar Chart data for Number of Active Users by Week
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select week, count(distinct user1)::int as ActiveUsers_Cnt
+from dbfit_test.user_report_ds51 where user1_event ='Login'
+group by week
+order by week -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select week, count(userid)::int as ActiveUsers_Cnt from 
+(
+select fuaa.userid, fuaa.eventname, fuaa.eventtimestamp, dd.weekdesc as week,
+RANK() over(partition by fuaa.userid, dd.weekdesc order by fuaa.eventlocaltimestamp desc) as rnk
+from clientaudit.f_user_audit_activity fuaa join clientaudit.d_date dd
+on to_char(fuaa.eventtimestamp,'YYYY-MM-DD') = dd.datename
+where eventname='Login' 
+) x where x.rnk =1
+group by week
+order by week -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|week|ActiveUsers_Cnt|
+*!
+*!
+
+!4 '''Test 4:''' Verify the Bar Chart data for Number of Active Users by Day
+
+!*> '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest |
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+!|Store Query|!- select date, count(distinct user1)::int as ActiveUsers_Cnt
+from dbfit_test.user_report_ds51 where user1_event ='Login'
+group by date
+order by date -!|target_data|
+*!
+
+!*> Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select date, count(distinct userid)::int as ActiveUsers_Cnt from
+(
+select userid,eventname, eventtimestamp, to_char(eventtimestamp,'YYYY-MM-DD') as date,
+RANK() over(partition by userid,to_char(eventtimestamp,'YYYY-MM-DD') order by eventtimestamp desc) as rnk
+from clientaudit.f_user_audit_activity where eventname='Login' 
+order by userid,date
+) x where x.rnk=1
+group by date
+order by date -!|source_data|
+*!
+
+|compare stored queries|source_data|target_data| 
+|date|ActiveUsers_Cnt|
+*!
+*!

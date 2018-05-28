@@ -1,0 +1,120 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify '''Withdraw Application (Pre, Post)''' on report matches with data on BI data store .
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Withdrawn Applications matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+!*> Insert Data
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_dashboard/withdrawn_apps.sql|x|
+|contains|x.stdout|Insert Successful|
+
+
+|commit|
+
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 10              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/remove-local-file.sh ${dbname} ${mstrServer}|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+!* '''Then''' Compare the data on source and target
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.app_dash_4 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('app_dash_4','/home/jenkins/workspace/-!${dbname}!-/Applications_Received_Dataset.csv',12);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+#!|Store Query|!--!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!-
+
+ select rtrim(ltrim(datename1)) datename1,  sum(pre_approval_count) pre_approval_count ,sum(post_approval_count) post_approval_count
+from (
+select dt.datename1
+,case when finaldecision not in ('acc') then count(applicationnumber) else 0 end pre_approval_count
+, case when finaldecision  in ('acc') then count(applicationnumber) else 0 end post_approval_count
+ 
+from f_application_decision fad
+inner join public.d_date dt on fad.applicationupdatelocaldatekey =dt.datepk
+where applicationstatus ='Withdrawn'
+group by datename1,finaldecision
+) a
+group by datename1
+
+-!|source_data|
+
+|commit|
+*!
+!|Query|<<source_data|
+|datename1 |pre_approval_count|post_approval_count|
+|2016-07-06|1                 |0                  |
+|2016-07-27|1                 |0                  |
+|2017-01-17|0                 |3                  |
+|2017-04-27|0                 |1                  |
+|2017-05-19|1                 |0                  |
+|2017-06-08|1                 |0                  |
+|2017-07-13|0                 |1                  |
+|2017-08-13|3                 |2                  |
+|2017-08-26|0                 |1                  |
+|2017-09-18|0                 |1                  |
+|2017-10-13|1                 |0                  |
+|2017-10-18|1                 |0                  |
+|2017-10-28|0                 |1                  |
+
+#|compare stored queries hide matching rows|source_data|target_data| 
+#|month1|system_decision|app_amount|
+*!
+*!

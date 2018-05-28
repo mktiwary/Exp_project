@@ -1,0 +1,4 @@
+!img /files/images/experian_logo.png
+
+!3 This test suite to cover other reports (https://confluenceglobal.experian.local/confluence/display/GSPD/5%3A+Other+Reports)
+!contents -R1 -g -p -f -h

@@ -1,0 +1,129 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify '''Turnaround time for an application''' on report matches with data on BI data store .
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Turnaround time for applications matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+!*> Insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_dashboard/turn_around_time.sql|x|
+|contains|x.stdout|Insert Successful|
+
+
+|commit|
+
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 10              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/remove-local-file.sh ${dbname} ${mstrServer}|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+!* '''Then''' Compare the data on source and target
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('app_dash_2','/home/jenkins/workspace/-!${dbname}!-/Applications_Received_Dataset.csv',12);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+#!|Store Query|!--!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- with mult_stat as (
+select applicationnumber, applicationcreationtimestamp
+--,applicationupdatetimestamp, applicationstatus
+from f_application_decision
+where lower (applicationstatus) in ('withdrawn', 'booked', 'accepted', 'declined')
+group by applicationnumber, applicationcreationtimestamp
+--having count(concat (applicationnumber::varchar,applicationcreationtimestamp::varchar))>1
+)
+, turn_time as (
+select fad.applicationnumber, fad.applicationcreationtimestamp,fad.applicationupdatetimestamp, 
+CASE
+   WHEN rank() OVER (PARTITION BY fad.applicationnumber ORDER BY fad.applicationupdatetimestamp) = 1 AND fad.applicationstatus::text = 'Incomplete'::text THEN 'New'::character varying(50)
+            ELSE fad.applicationstatus
+        END AS applicationstatus
+from f_application_decision fad
+inner join mult_stat ms on ms.applicationnumber =fad.applicationnumber and ms.applicationcreationtimestamp =fad.applicationcreationtimestamp
+where fad.applicationstatus in ('Error', 'Incomplete', 'Fraud Refer', 'Refer', 'Approved','Declined')
+order by applicationnumber, applicationcreationtimestamp,applicationupdatetimestamp
+)
+,hr_data as (
+select applicationnumber, applicationstatus,round(time_taken::decimal,0) time_taken_hr
+from (
+SELECT applicationnumber, applicationstatus 
+,(extract(epoch FROM (lead(applicationupdatetimestamp) OVER (PARTITION BY applicationnumber ORDER BY   applicationupdatetimestamp) -applicationupdatetimestamp )::interval))/3600 as time_taken
+FROM turn_time
+) a
+where time_taken is not null
+)
+
+select  applicationstatus, count(applicationstatus)
+, round(sum (time_taken_hr)/count(applicationstatus),0)::varchar average_time
+,max(time_taken_hr) max_time_in_status
+, min(time_taken_hr) min_time_in_status
+from hr_data
+group by applicationstatus
+order by applicationstatus
+-!|source_data|
+
+|commit|
+*!
+!|Query|<<source_data|
+|applicationstatus|average_time|max_time_in_status|min_time_in_status|
+|Declined         |3532        |6334              |1250              | 
+|Error            |4269        |7465              |1671              |
+|Fraud Refer      |2641        |4386              |1506              |
+|Incomplete       |182         |314               |50                |
+|New              |3027        |5279              |23                | 
+|Refer            |4750        |4750              |4750              |
+
+
+#|compare stored queries hide matching rows|source_data|target_data| 
+#|month1|system_decision|app_amount|
+*!
+*!

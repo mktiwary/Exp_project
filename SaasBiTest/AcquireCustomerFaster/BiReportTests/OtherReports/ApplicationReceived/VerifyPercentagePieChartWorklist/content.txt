@@ -1,0 +1,140 @@
+@case_id=6528729
+@section=BI_Microstrategy_Web
+@priority=P2
+@reference=ANA-133232
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify that '''Number Of Applications on Applications received''' matches source data on BI data store when update is received on application.
+
+ Rule: For each application ID select the most recent update to all applications (applications can have multiple updates).  There should be only one row per application ID.
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Application Received Report data matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+!*> insert Message
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_received/app_by_source_2.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+#|com.objectmentor.fixtures.CommandLineFixture|
+#|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+#|com.objectmentor.fixtures.CommandLineFixture|
+#|command               |sleep 30              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Applications_Received_Dataset.csv|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+
+!* '''Then''' Compare the data on source and target
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.applications_received3 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('applications_received3','/home/jenkins/workspace/-!${dbname}!-/Applications_Received_Dataset.csv',10);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select a.no_of_app, Work_list Worklist 
+,round(((a.no_of_app::decimal/b.ttl_app::decimal) *100),2) percent 
+from
+(
+select Work_list, sum("number_of_application_(distinct)"::integer) no_of_app
+from dbfit_test.applications_received7
+group by Work_list
+ 
+) a
+,(select 
+sum("number_of_application_(distinct)"::integer) ttl_app
+from dbfit_test.applications_received3
+) b -!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- /*Temp query to get required data*/
+with app_rec as(
+select u.applicationnumber,u.applicationcreationlocaltimestamp, u.applicationupdatelocaltimestamp, 
+u.decisiontype,u.applicationstatus,u.channel,u.worklist, systemdecision,applicationsource
+from public.f_application_decision as u
+inner join (
+select applicationNumber, applicationcreationlocaltimestamp, max(applicationupdatelocaltimestamp) applicationupdatelocaltimestamp from public.f_application_decision
+group by applicationNumber,applicationcreationlocaltimestamp
+order by applicationnumber
+) as q
+on u.applicationnumber =q.applicationnumber
+and u.applicationupdatelocaltimestamp = q.applicationupdatelocaltimestamp
+and u.applicationcreationtimestamp = q.applicationcreationlocaltimestamp
+--group by u.applicationnumber,u.applicationcreationtimestamp
+order by u.applicationnumber,u.applicationcreationtimestamp ,u.applicationupdatelocaltimestamp
+) 
+,count_by_Worklist as 
+( select count (distinct applicationnumber ) no_of_app
+, Worklist
+from app_rec
+--where to_char (applicationcreationlocaltimestamp, 'YYYY-MM-DD')='2017-01-05'
+group by Worklist
+order by  Worklist
+)
+,ttl_count as (select count (distinct applicationnumber ) ttl_count
+from app_rec)
+
+select Worklist, no_of_app,round (((no_of_app::decimal/ttl_count::decimal)*100),2) percent
+from count_by_Worklist
+,ttl_count
+order by Worklist
+
+ -!|source_data|
+
+|commit|
+*!
+|compare stored queries hide matching rows|source_data|target_data| 
+|Worklist|no_of_app|percent|
+*!
+*!

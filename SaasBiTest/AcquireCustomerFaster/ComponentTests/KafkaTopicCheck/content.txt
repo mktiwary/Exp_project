@@ -1,0 +1,38 @@
+@case_id=6504742
+@section=BI_Event_Consumer
+@priority=P1
+@reference=ANA-127674
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!lastmodified
+
+!*> Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${dbfitPostgres}|
+*!
+
+!*> Step to download the kafka topics available onto a file
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command |kafka-message/Testkafkaconnection.sh ${dbname}|
+*!
+!*> Step to load kafka topic into postgres table
+
+!|Execute|!-CREATE SCHEMA IF NOT EXISTS dbfit_test AUTHORIZATION postgres -!|
+!|Execute|DROP TABLE IF EXISTS dbfit_test.kafka_topics CASCADE|
+!|commit|
+
+!|Execute| create table dbfit_test.kafka_topics(TOPIC_NAME varchar(200) NULL)|
+!|commit|
+!|Execute| COPY dbfit_test.kafka_topics(TOPIC_NAME) FROM '!-/home/jenkins/workspace/-!${dbname}!-/Kafkatopics.out-!' |
+!|commit|
+*!
+!*> Step to verify a Kafka topic is present in that environment
+
+!|Query| Select * from dbfit_test.kafka_topics where topic_name ='${topic}'|
+|topic_name|
+|${topic}|
+*!

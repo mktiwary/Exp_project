@@ -1,0 +1,107 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify '''Number of reason codes used for applications which have been withdrawn''' on report matches with data on BI data store .
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Number of reason codes used for applications which have been withdrawn matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+!|Execute| !- delete from public.f_application_decision_reason_code  where applicationnumber in ('212461284','212461291','212461292','212461289','212461252','212461310','212461286','212461254','212461253','212461275','212461285','212461314','212461266','212461273','212461245','212461262','212461288','212461303','212461299','212461311','212461307','212461255','212461259','212461269','212461248','212461263','212461270','212461305','212461265','212461302','212461313','212461276','212461279','212461257','212461308','212461309','212461280','212461274','212461294','212461264','212461258','212461260','212461287','212461304','212461293','212461306','212461251','212461261','212461315','212461271','212461312','212461278','212461301','212461267','212461272','212461297','212461290','212461277','212461283','212461281' )
+-!|
+
+|commit|
+*!
+!*> Insert Data
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_dashboard/withdrawn_apps.sql|x|
+|contains|x.stdout|Insert Successful|
+
+|commit|
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_dashboard/reason_code_overrise_deicion.sql|x|
+|contains|x.stdout|Insert Successful|
+
+|commit|
+
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 10              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/remove-local-file.sh ${dbname} ${mstrServer}|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+!* '''Then''' Compare the data on source and target
+!*> Microstrategy Data (Target Data)
+#!|Store Query|!--!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!-
+
+ select  decisionsortedreasoncode reason_code,count(drc.decisionsortedreasoncode) count_reason_code
+---,fad.applicationupdatetimestamp, drc.applicationupdatetimestamp
+from f_application_decision fad
+inner join  f_application_decision_reason_code drc on drc.correlationid =fad.correlationid
+where  date(fad.applicationupdatetimestamp) = date(drc.applicationupdatetimestamp) and
+fad.applicationstatus in ('Withdrawn')
+ group by decisionsortedreasoncode
+
+
+-!|source_data|
+
+|commit|
+*!
+!|Query|<<source_data|
+|reason_code             |count_reason_code|
+|Reason1                 |1              |
+|Reason10                |3              |
+|Reason11                |1              |
+|Reason12                |1              |
+|Reason2                 |2              |
+|Reason3                 |1              |
+|Reason4                 |1              |
+|Reason5                 |1              |
+|Reason6                 |1              |
+|Reason7                 |1              |
+|Reason8                 |4              |
+|Reason9                 |2              |
+
+
+#|compare stored queries hide matching rows|source_data|target_data| 
+#|month1|system_decision|app_amount|
+*!
+*!

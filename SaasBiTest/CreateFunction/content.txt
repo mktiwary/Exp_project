@@ -1,0 +1,85 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 This page is to create a function in Database for importing csv files to local DB
+
+!*> Variable & Setup
+!path lib/*.jar
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${dbfitPostgres}|
+
+|set option|bind symbols|false|
+*!
+!*> Create Function on Postgres DB
+
+!|Execute|!-CREATE SCHEMA IF NOT EXISTS dbfit_test AUTHORIZATION postgres -!|
+
+|commit|
+
+!|Execute|set schema 'dbfit_test'|
+
+!|Execute|DROP TABLE IF EXISTS dbfit_test.insert_from_csv2 CASCADE|
+
+|commit|
+
+!|Execute|!- create or replace function dbfit_test.load_csv_file2
+(
+target_table text,
+csv_path text,
+col_count integer
+)
+
+returns void 
+SECURITY DEFINER
+as $$
+
+declare
+
+iter integer; -- dummy integer to iterate columns with
+col text; -- variable to keep the column name at each iteration
+col_first text; -- first column name, e.g., top left corner on a csv file or     spreadsheet
+
+begin
+set schema 'dbfit_test';
+
+create table insert_from_csv2 ();
+
+-- add just enough number of columns
+for iter in 1..col_count
+loop
+    execute format('alter table insert_from_csv2 add column col_%s text;', iter);
+end loop;
+
+-- copy the data from csv file 
+execute format('copy insert_from_csv2 from %L delimiter '','' quote ''"'' csv', csv_path);
+
+iter := 1;
+col_first := (select col_1 from insert_from_csv2 limit 1);
+
+-- update the column names based on the first row which has the column names
+for col in execute format('select unnest(string_to_array(lower(replace(replace(replace(replace(trim(insert_from_csv2::text, ''()''),''#'',''no''),'' '',''_''),''%%'',''percentage''),''User'',''User1'')), '','')) from insert_from_csv2 where col_1 = %L', col_first)
+
+--for col in execute format('select unnest(string_to_array(lower(replace(trim(insert_from_csv2::text, ''()''),'' '',''_'')), '','')) from insert_from_csv2 where col_1 = %L', col_first)
+
+loop
+    execute format('alter table insert_from_csv2 rename column col_%s to %s', iter, col);
+    iter := iter + 1;
+end loop;
+
+-- delete the columns row
+-- execute format('delete from insert_from_csv2 where %I = %L', col_first, col_first);
+execute format('delete from insert_from_csv2  where ctid  in (select ctid from insert_from_csv2 limit 1 )  ');
+
+-- change the temp table name to the name given as parameter, if not blank
+if length(target_table) > 0 then
+    execute format('alter table insert_from_csv2 rename to %I', target_table);
+end if;
+
+end;
+
+$$ language plpgsql;
+-!|
+
+|commit|
+
+*!

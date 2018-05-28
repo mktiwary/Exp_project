@@ -1,0 +1,7 @@
+!img /files/images/experian_logo.png
+
+
+'''Decription:''' This test suite to cover System tests for Applications Received reports.
+!c                  (https://confluenceglobal.experian.local/confluence/display/GSPD/02%3A+Applications+Received)
+
+!contents -R2 -g -p -f -h

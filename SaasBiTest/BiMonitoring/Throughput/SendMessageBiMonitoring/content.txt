@@ -1,0 +1,26 @@
+!*> Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env} |
+*!
+!3 '''Description:'''     Purpose of the test is to ensure that Number of messages sent from source matches with number of messages received at the target. 
+
+!4 '''Test 1:''' This test is to ensure that count and data in source and target is same
+
+!*> '''Given''' That message sent from source (!-PowerCurve-!). 
+!*> Clear Table
+!|Execute| delete from public.f_application_decision|
+
+|commit|
+*!
+!* Send message
+|com.objectmentor.fixtures.CommandLineFixture|
+|command   |kafka-message/send-message-bi-monitoring.sh ${topic}  Test_Data/FADSourceTargetRecon.json|
+|command   |echo "Message Sent"              |
+
+!*< Sleep
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 3              |
+*!
+*!
+*!

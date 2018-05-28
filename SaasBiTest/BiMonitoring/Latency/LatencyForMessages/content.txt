@@ -1,0 +1,31 @@
+@case_id=6781708
+@section=BI_Monitoring
+@priority=P2
+@reference=ANA-130799
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Manual
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' This test is ensure that splunk calculates latency correctly for consumer
+
+Jira: https://jira.uk.experian.local/browse/ANA-130799
+Ref: https://confluenceglobal.experian.local/confluence/display/GSPD/BI+Monitoring
+
+!4 '''Test 1:''' This test is to ensure that splunk calculates latency correctly
+
+!3 Steps:
+
+!4 '''Precondition''' RDS instance is up and running
+
+   1. Login to splunk 
+   2. Enter search criteria-> ''' index="bi_monitoring_dev_gb" host="paste name here" throughput '''
+   3. send messages to kafka (use test page SaasBiTest.BiMonitoring.Throughput.SendMessageBiMonitoring)
+   4. Wait for metrics to be updated in splunk
+   5. Verify the details displayed in result for throughput
+   6. calcluate '''Min, Max ''' for throughput
+
+!3 Expected:    
+   1. Throughput on splunk should show correct details for '''Min, Max''' calcualtions 

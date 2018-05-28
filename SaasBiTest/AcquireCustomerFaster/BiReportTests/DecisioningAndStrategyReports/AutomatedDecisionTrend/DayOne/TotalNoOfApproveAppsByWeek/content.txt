@@ -1,0 +1,108 @@
+@case_id=6581704
+@section=BI_Microstrategy_Web
+@priority=P2
+@reference=ANA-133239
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify that '''Number of Applications on ADT Report''' matches source data on BI data store and report shows only Automated Decisions
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that ADT Report data matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} adt_report/adt_report_v2.2.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+
+|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+#|com.objectmentor.fixtures.CommandLineFixture|
+#|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} ADT_Dataset.csv|
+*!
+*!
+
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.adt_report2 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('adt_report2','/home/jenkins/workspace/-!${dbname}!-/ADT_Dataset.csv',7);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select week as week_desc, system_decision decision_category, sum(number_of_applications_with_decisions::integer) no_of_apps 
+from dbfit_test.adt_report2
+where lower(system_decision)='approve'
+group by week,system_decision
+order by week
+ -!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- 
+select count(applicationnumber) no_of_apps,systemdecision decision_category,dt.weekdesc week_desc
+from f_application_decision fad
+inner join d_date dt on cast(dt.datepk as varchar)= to_char(applicationupdatelocaltimestamp::date,'YYYYMMDD')
+where --to_char(applicationupdatelocaltimestamp::date,'YYYY-MM-DD')='2017-01-01' and
+decisiontype='System' 
+and lower(systemdecision)='approve'
+group by dt.weekdesc,systemdecision
+order by dt.weekdesc
+-!|source_data|
+
+|commit|
+*!
+
+|compare stored queries|source_data|target_data| 
+|week_desc|decision_category|no_of_apps|
+*!
+*!

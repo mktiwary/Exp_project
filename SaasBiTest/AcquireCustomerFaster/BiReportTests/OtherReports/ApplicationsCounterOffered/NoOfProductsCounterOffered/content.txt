@@ -1,0 +1,148 @@
+@case_id=6781726
+@section=BI_Microstrategy_Web
+@priority=P2
+@reference=ANA-130787
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify that '''Number of Products on Applications Counter Offer''' matches source data on BI data store and report shows only Automated Decisions
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that Application Counter Offer Report data matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+
+!*> insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} app_counter_offer/app_counter_offer.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+
+!|Execute|!- update f_application_decision
+set decisiontype=null
+where systemdecision='' -!|
+
+|commit|
+
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} Applications_Counteroffered_Dataset.csv|
+*!
+*!
+
+!*> '''Then''' Compare the data on source and target
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.counter_offer1 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('counter_offer1','/home/jenkins/workspace/-!${dbname}!-/Applications_Counteroffered_Dataset.csv',15);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- 
+select month month1
+,sum(REGEXP_REPLACE(COALESCE(number_of_counter_offer_products, '0'), '[^0-9]*' ,'0')::integer) as apps_counter_offered
+from counter_offer1
+group by month
+order by month
+ -!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- 
+with latest_app as(
+select 
+applicationnumber,max(applicationupdatetimestamp) applicationupdatetimestamp
+,producttype
+from f_application_decision 
+group by applicationnumber,producttype
+order by applicationnumber
+)
+
+, offered as(
+select fad.applicationnumber,applicationstatus,applicationcreationtimestamp,fad.applicationupdatetimestamp, fad.producttype, amountrequested
+,amountapproved,termrequested,termapproved,raterequested,rateapproved,downpaymentrequested,downpaymentapproved,productcounteroffer,underwriterid
+
+from f_application_decision fad
+inner join latest_app la on la.applicationnumber =fad.applicationnumber and la.applicationupdatetimestamp =fad.applicationupdatetimestamp
+and la.producttype=fad.producttype
+order by applicationnumber
+)
+, ttl_cnt_off as (
+select count(applicationnumber) ttl_apps
+,to_char(applicationcreationtimestamp,'YYYY-MM') month1
+from offered
+group by to_char(applicationcreationtimestamp,'YYYY-MM')
+)
+
+select off.month1
+,cnt_offer_apps apps_counter_offered
+--,tl.ttl_apps
+--,round(((cnt_offer_apps::decimal/ttl_apps::decimal)*100),2) pcnt_apps_counter_offered
+from 
+(select 
+count(applicationnumber) cnt_offer_apps
+,to_char(applicationcreationtimestamp,'YYYY-MM') month1
+from offered    
+where productcounteroffer='y'
+group by to_char(applicationcreationtimestamp,'YYYY-MM')
+) off
+,ttl_cnt_off tl
+where off.month1 = tl.month1 
+order by month1
+
+
+-!|source_data|
+
+|commit|
+*!
+
+|compare stored queries|source_data|target_data| 
+|month1|apps_counter_offered|
+*!
+*!

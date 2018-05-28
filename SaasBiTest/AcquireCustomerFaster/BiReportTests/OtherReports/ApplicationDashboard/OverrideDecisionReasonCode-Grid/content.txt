@@ -1,0 +1,170 @@
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This is integration test to verify '''Override Deiciosn Reason code''' on report matches with data on BI data store .
+
+!*> Variable & Setup
+!path lib/*.jar
+
+!|dbfit.PostgresTest                       |
+
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Ensure that count for "Override Deiciosn Reason code" matches with source data
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+!|Execute| !- delete from public.f_application_decision_reason_code  where applicationnumber in ('212461284','212461291','212461292','212461289','212461252','212461310','212461286','212461254','212461253','212461275','212461285','212461314','212461266','212461273','212461245','212461262','212461288','212461303','212461299','212461311','212461307','212461255','212461259','212461269','212461248','212461263','212461270','212461305','212461265','212461302','212461313','212461276','212461279','212461257','212461308','212461309','212461280','212461274','212461294','212461264','212461258','212461260','212461287','212461304','212461293','212461306','212461251','212461261','212461315','212461271','212461312','212461278','212461301','212461267','212461272','212461297','212461290','212461277','212461283','212461281' )
+-!|
+
+|commit|
+*!
+!*> Insert Data
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname}  app_dashboard/override_decision_r_code.sql|x|
+|contains|x.stdout|Insert Successful|
+
+|commit|
+
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname}  app_dashboard/reason_code_overrise_deicion.sql|x|
+|contains|x.stdout|Insert Successful|
+
+|commit|
+
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF  sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit;EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+|com.objectmentor.fixtures.CommandLineFixture|
+|command               |sleep 10              |
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/remove-local-file.sh ${dbname} ${mstrServer}|
+*!
+!*> Capture source data
+!include .SaasBiTest.CreateFunction
+*!
+*!
+!* '''Then''' Compare the data on source and target
+!*> Load CSV file into DB
+
+!|Execute|DROP TABLE IF EXISTS dbfit_test.app_dash_4 CASCADE|
+
+|commit|
+
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('app_dash_4','/home/jenkins/workspace/-!${dbname}!-/Applications_Received_Dataset.csv',12);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+#!|Store Query|!--!|target_data|
+
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!-
+select  fad.applicationnumber,fad.producttype,date(fad.applicationupdatetimestamp) applicationupdatetimestamp
+,CASE when fad.underwriterid='NULL' then NULL else rtrim(ltrim(fad.underwriterid)) end underwriterid
+,case when fad.finaldecision='' then NULL else finaldecision end finaldecision
+from f_application_decision fad
+inner join  f_application_decision_reason_code drc on drc.correlationid =fad.correlationid
+where  date(fad.applicationupdatetimestamp) = date(drc.applicationupdatetimestamp) 
+and (("Pst-B-Policy-Decision-Category" ='Accept' and finaldecision != 'acc')
+or ("Pst-B-Policy-Decision-Category" ='Decline' and finaldecision != 'dec'))
+order by applicationnumber, fad.applicationupdatetimestamp
+-!|source_data|
+
+|commit|
+*!
+!|Query|<<source_data|
+|applicationnumber|producttype    |applicationupdatetimestamp|underwriterid|finaldecision|
+|212461245        |Mortgage       |2017-08-13                |20006        |NULL|
+|212461248        |current account|2016-05-04                |20003        |dec          |
+|212461248        |current account|2016-11-18                |20003        |acc          |
+|212461251        |Personal Loan  |2017-06-22                |20009        |dec          |
+|212461251        |Personal Loan  |2017-10-18                |20009        |acc          |
+|212461253        |Credit Card    |2017-09-04                |20002        |NULL         |
+|212461255        |Mortgage       |2017-08-05                |20002        |dec          |
+|212461255        |Mortgage       |2017-08-13                |20002        |ref          |
+|212461257        |Personal Loan  |2017-08-12                |20009        |dec          |
+|212461258        |Personal Loan  |2016-10-30                |20003        |acc          |
+|212461258        |Personal Loan  |2017-04-27                |20003        |dec          |
+|212461259        |Personal Loan  |2017-08-21                |NULL         |NULL         |
+|212461260        |Mortgage       |2016-12-28                |20006        |ref          |
+|212461261        |Mortgage       |2017-12-20                |20007        |ref          |
+|212461262        |Credit card    |2016-04-07                |20004        |NULL         |
+|212461263        |Personal Loan  |2017-12-04                |20007        |dec          |
+|212461264        |Credit card    |2016-01-25                |20007        |acc          |
+|212461264        |Credit card    |2017-08-26                |20007        |acc          |
+|212461266        |Mortgage       |2017-10-28                |NULL         |NULL         |
+|212461267        |Personal Loan  |2016-01-13                |20005        |ref          |
+|212461267        |Personal Loan  |2016-10-19                |20005        |NULL         |
+|212461269        |current account|2016-06-17                |20006        |ref          |
+|212461270        |Credit card    |2016-01-23                |20009        |ref          |
+|212461271        |Mortgage       |2016-04-08                |20008        |ref          |
+|212461271        |Mortgage       |2017-06-08                |20008        |dec          |
+|212461272        |current account|2016-03-09                |20007        |NULL         |
+|212461273        |current account|2016-07-27                |20003        |ref          |
+|212461275        |current account|2017-01-17                |20005        |ref          |
+|212461276        |Personal Loan  |2017-01-13                |NULL         |ref          |
+|212461277        |Personal Loan  |2016-08-08                |20002        |dec          |
+|212461278        |Mortgage       |2017-11-08                |20006        |ref          |
+|212461279        |current account|2017-04-27                |20006        |ref          |
+|212461280        |Personal Loan  |2017-01-17                |20002        |acc          |
+|212461285        |Credit card    |2017-01-17                |20008        |ref          |
+|212461285        |Credit card    |2017-02-16                |20008        |dec          |
+|212461286        |Credit card    |2017-09-18                |20005        |ref          |
+|212461287        |Credit card    |2016-10-06                |20009        |acc          |
+|212461288        |Personal Loan  |2017-12-24                |20009        |acc          |
+|212461291        |Mortgage       |2016-04-08                |20002        |acc          |
+|212461293        |Mortgage       |2016-02-19                |NULL         |acc          |
+|212461293        |Mortgage       |2016-06-19                |NULL         |ref          |
+|212461294        |Mortgage       |2017-05-25                |NULL         |acc          |
+|212461297        |Mortgage       |2017-05-25                |NULL         |dec          |
+|212461299        |Personal Loan  |2016-02-02                |20008        |dec          |
+|212461301        |current account|2016-12-30                |20005        |dec          |
+|212461302        |current account|2016-01-15                |20009        |ref          |
+|212461304        |current account|2016-04-16                |20008        |ref          |
+|212461305        |Credit card    |2016-09-14                |20008        |dec          |
+|212461306        |Credit card    |2016-09-12                |20007        |ref          |
+|212461307        |Personal Loan  |2016-11-05                |20006        |ref          |
+|212461307        |Personal Loan  |2017-05-06                |20006        |ref          |
+|212461309        |Credit card    |2017-06-11                |20002        |ref          |
+|212461309        |Credit card    |2017-07-16                |20002        |dec          |
+|212461310        |Credit card    |2017-12-16                |20003        |acc          |
+|212461313        |Personal Loan  |2017-10-07                |20009        |ref          |
+|212461313        |Personal Loan  |2017-12-04                |20009        |ref          |
+|212461314        |Credit card    |2017-03-12                |20002        |ref          |
+|212461315        |current account|2017-09-23                |20004        |dec          |
+|212461315        |current account|2017-09-24                |20004        |dec          |
+|212461315        |current account|2017-09-26                |20004        |dec          |
+
+#|compare stored queries hide matching rows|source_data|target_data| 
+#|month1|system_decision|app_amount|
+*!
+*!

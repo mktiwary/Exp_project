@@ -1,0 +1,88 @@
+@case_id=6504744
+@section=BI_Event_Consumer
+@priority=P1
+@reference=ANA-127674
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!lastmodified
+
+!*< Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env} |
+!define tablename {d_date}
+*!
+
+!3 '''Description:'''     Purpose of the test is to verify table structure, primary keys  and index keys on table '''${tablename}'''
+
+!4 '''Test 1:'''  Test to Validate Table structure of Table ${tablename}
+!*> '''Given''' Given that table structure is defined in BI Data Model
+*!
+!*> '''When''' Code is deployed into QA environment developed by dev team
+*!
+!*> '''Then''' Verify that table and it's structure is as per the interface document
+!|query|${tablesql} and  table_schema='public'|
+|ordinal_position|column_name          |udt_name   |character_maximum_length|is_nullable|numeric_precision|numeric_precision_radix|numeric_scale|datetime_precision|
+|1               |datepk               |int4       |null                    |NO         |32               |2                      |0            |null              |
+|5               |dayofweeknumber      |int2       |null                    |YES        |16               |2                      |0            |null              |
+|6               |dayofweekname        |text       |null                    |YES        |null             |null                   |null         |null              |
+|8               |dayofmonthnumber     |int2       |null                    |YES        |16               |2                      |0            |null              |
+|10              |monthnumber          |int2       |null                    |YES        |16               |2                      |0            |null              |
+|11              |monthname            |text       |null                    |YES        |null             |null                   |null         |null              |
+|12              |yearname             |text       |null                    |YES        |null             |null                   |null         |null              |
+|13              |yearquarter          |text       |null                    |YES        |null             |null                   |null         |null              |
+|14              |holiday              |text       |null                    |YES        |null             |null                   |null         |null              |
+|15              |description          |text       |null                    |YES        |null             |null                   |null         |null              |
+|16              |recordcreateddatetime|timestamptz|null                    |YES        |null             |null                   |null         |6                 |
+|17              |recordupdateddatetime|timestamptz|null                    |YES        |null             |null                   |null         |6                 |
+|18              |datename             |text       |null                    |YES        |null             |null                   |null         |null              |
+|19              |datevalue            |date       |null                    |YES        |null             |null                   |null         |0                 |
+|20              |weekstartdate        |date       |null                    |YES        |null             |null                   |null         |0                 |
+|21              |weekdesc             |text       |null                    |YES        |null             |null                   |null         |null              |
+|22              |daytype              |text       |null                    |YES        |null             |null                   |null         |null              |
+|23              |monthvalue           |date       |null                    |YES        |null             |null                   |null         |0                 |
+|24              |monthid              |int4       |null                    |NO         |32               |2                      |0            |null              |
+|25              |monthdesc            |text       |null                    |YES        |null             |null                   |null         |null              |
+|26              |quarterid            |int4       |null                    |NO         |32               |2                      |0            |null              |
+|27              |quartervalue         |date       |null                    |YES        |null             |null                   |null         |0                 |
+|28              |weekid               |int4       |null                    |NO         |32               |2                      |0            |null              |
+|29              |weekenddate          |date       |null                    |YES        |null             |null                   |null         |0                 |
+|30              |monthstartdate       |date       |null                    |YES        |null             |null                   |null         |0                 |
+|31              |monthenddate         |date       |null                    |YES        |null             |null                   |null         |0                 |
+|32              |quarterstartdate     |date       |null                    |YES        |null             |null                   |null         |0                 |
+|33              |quarterenddate       |date       |null                    |YES        |null             |null                   |null         |0                 |
+|34              |yearstartdate        |date       |null                    |YES        |null             |null                   |null         |0                 |
+|35              |yearenddate          |date       |null                    |YES        |null             |null                   |null         |0                 |
+|36              |yearid               |int4       |null                    |NO         |32               |2                      |0            |null              |
+|37              |lastmonthid          |int4       |null                    |YES        |32               |2                      |0            |null              |
+|38              |lastyearid           |int4       |null                    |YES        |32               |2                      |0            |null              |
+|39              |recordcreatedby      |text       |null                    |YES        |null             |null                   |null         |null              |
+|40              |recordupdatedby      |text       |null                    |YES        |null             |null                   |null         |null              |
+
+*!
+!4 '''Test 2:''' Test to verify that Primary Key is defined on correct column for Table ${tablename}
+!*> '''Given''' Given that Primary Key is defined in BI Data Model
+*!
+!*> '''When''' Code is deployed into QA environment developed by dev team
+
+*!
+!*> '''Then''' Verify that Primary Key is defined on correct column for Table
+!|Query|${pksql}|
+|PKColumnName|
+|datepk|
+*!
+ 
+!4 '''Test 3: ''' Test to Check if Index keys are available on correct column on ${tablename}
+!*> '''Given''' Given that Index keys is defined in BI Data Model
+*!
+!*> '''When''' Code is deployed into QA environment developed by dev team
+some code here --- if you are deploying the code
+*!
+!*> '''Then''' Verify that Index keys is defined on correct column for Table
+!|Query|${indexsql}|
+|table_name|index_name|column_name|
+|d_date|d_date_pk_constraint|datepk|
+*!
+

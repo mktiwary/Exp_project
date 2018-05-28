@@ -1,0 +1,103 @@
+@case_id=6657858
+@section=BI_Reports
+@priority=P2
+@reference=ANA-133255
+@test_type=User_Story_Acceptance
+@use_case=ACF
+@execution_type=Automated
+
+!img /files/images/experian_logo.png
+!lastmodified
+
+!3 '''Description:''' 
+ This test is to verify '''MDT Report Bar chart - Percentage of Manual Decision Outcome'''
+
+!*> Variable & Setup
+!path lib/*.jar
+!|dbfit.PostgresTest|
+!|ConnectUsingFile|${env} |
+
+|set option|bind symbols|false|
+*!
+!4 '''Test 1:''' Purpose of this test is to verify data displayed on the Bar chart Percentage of Manual Decision Outcome for MDT report
+
+!*> '''Given''' Report is created on micro-strategy and delivered to Test team for validation.
+!*> Clear Table
+!|Execute|delete from public.f_application_decision |
+
+|commit|
+*!
+!* Insert Data
+!|com.objectmentor.fixtures.CommandLineFixture|
+|command|./sqlfiles/pgexecutesql.sh ${dbname} mdt_report/mdt_f_application_decision.sql|x|
+|contains|x.stdout|Insert Successful|
+*!
+|commit|
+*!
+!* '''When'''  MSTR report is executed and MSTR produced a csv file
+!*> Execute MSTR report
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|ssh -tt -i ${bastionkey} -o !-StrictHostKeyChecking=no-! ${mstrServer} 'bash -s' << EOF sleep 5;sudo /opt/MicroStrategy/bin/mstrsysmgr -w /home/genesaas/runTest.smw -p user=administrator password= project=${dbname}; exit; EOF|
+*!
+!*> '''And''' Copy file from MSTR server to DbFit Server and Load csv file into postgres DB [local instance]
+
+|com.objectmentor.fixtures.CommandLineFixture|
+|command|mstr-script/copy-file.sh ${dbname} ${mstrServer} MDT_Dataset.csv|
+*!
+*!
+
+!* '''Then''' Compare the data on source and target
+
+!include .SaasBiTest.CreateFunction
+
+!*> Drop table if exists
+!|Execute|DROP TABLE IF EXISTS dbfit_test.mdt_report3 CASCADE|
+
+|commit|
+*!
+!*> Load CSV file into DB
+!|Execute|!- set schema 'dbfit_test' -!|
+
+!|Execute|!- 
+DO $$ BEGIN
+      PERFORM "load_csv_file2"('mdt_report3','/home/jenkins/workspace/-!${dbname}!-/MDT_Dataset.csv',11);
+END $$;
+
+-!|
+
+|commit|
+*!
+!*> Microstrategy Data (Target Data)
+!|Store Query|!- select underwriter::text as underwriterid, cast(rtrim(approved_percentage,'%') as double precision) as ApprovedPct,
+cast(rtrim(decline_percentage,'%') as double precision) as Declinepct,
+cast(rtrim(counteroffer_percentage,'%') as double precision) as Counterofferpct
+from dbfit_test.mdt_report3 where underwriter != 'Total' -!|target_data|
+*!
+
+!* Compare source data with target data
+!*< Setup
+!|dbfit.PostgresTest                       |
+!|ConnectUsingFile|${env} |
+|set option|bind symbols|false|
+*!
+!*> Source Query
+!|Store Query|!- select underwriterid::text, round(sum(ApprovedCnt)/sum(DecisionMade)::dec*100,2) as Approvedpct, 
+round(sum(DeclineCnt)/sum(DecisionMade)::dec*100,2) as Declinepct, round(sum(CounterofferCnt)/sum(DecisionMade)::dec*100,2) as Counterofferpct
+from
+(
+select underwriterid, 
+sum(case when decisiontype ='Manual' then 1 else 0 end) as DecisionMade,
+sum(case when decisiontype ='Manual' and decision = 'APPROVE' then 1 else 0 end) as ApprovedCnt,
+sum(case when decisiontype ='Manual' and decision = 'DECLINE' then 1 else 0 end) as DeclineCnt,
+sum(case when decisiontype ='Manual' and productcounteroffer ='y' then 1 else 0 end) as CounterofferCnt,
+RANK() OVER (PARTITION BY applicationnumber, producttype, productid ORDER BY applicationupdatetimestamp desc) as rnk
+from f_application_decision where decisiontype ='Manual' 
+group by underwriterid, applicationupdatetimestamp, applicationnumber, producttype, productid
+)x where rnk=1
+group by underwriterid
+order by underwriterid -!|source_data|
+*!
+|compare stored queries hide matching rows|source_data|target_data| 
+|underwriterid|Approvedpct|Declinepct|Counterofferpct|
+*!
+*!

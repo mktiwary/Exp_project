@@ -1,0 +1,9 @@
+!img /files/images/experian_logo.png
+
+!3 This test suite contains tests for latency.
+
+'''Description'''- Time it takes to send the message through the pipeline. Difference between message been sent to the Topic and Written to the database.
+
+Ref: https://confluenceglobal.experian.local/confluence/display/GSPD/BI+Monitoring
+
+!contents -R2 -g -p -f -h
